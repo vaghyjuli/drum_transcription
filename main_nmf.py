@@ -211,23 +211,45 @@ plt.imshow(H, cmap='hot', vmin=0, interpolation='nearest')
 plt.show()
 """
 
+onsets = []
+
 # find onsets
 # CHANGE RANGE IF MORE INSTRUMENTS ARE INCLUDED
-"""
-H = normalize_feature_sequence(X=H, norm="max")
+#H = normalize_feature_sequence(X=H, norm="max")
 Fs_feature = Fs / hop
 colors = ["blue", "green", "cyan", "magenta", "yellow", "black", "white"]
 for i in range(len(instruments)):
+    # make first peaks visible
+    activations = np.append([0, 0], H[i])
     T_coef = np.arange(len(H[i])) / Fs_feature
-    for k in range(len(H[i])):
-        if(H[i][k] < 0.1): H[i][k] = 0
-    plt.plot(T_coef, H[i], color=colors[i])
-    peaks, properties = signal.find_peaks(H[i], prominence=0.25)
-    peaks_sec = T_coef[peaks]
+    time_unit = T_coef[1]
+    T_coef = np.append([-time_unit*2, -time_unit], T_coef)
+
+    for k in range(len(activations)):
+        if(activations[k] < 0.1): activations[k] = 0
+    plt.plot(T_coef, activations, color=colors[i])
+    H_diff = np.diff(activations)
+    #half-wave rectification
+    for k in range(len(H_diff)):
+        if H_diff[k] < 0.1:
+            H_diff[k] = 0
+    plt.plot(T_coef[:-1], H_diff, color=colors[i+1])
+    peaks, properties = signal.find_peaks(H_diff, prominence=0.1)
+    height = np.mean(H_diff[peaks])/2
+    peaks, properties = signal.find_peaks(H_diff, height=height)
+    peaks_sec = T_coef[peaks] + time_unit
     print(instruments[i].get_name(), peaks_sec)
     plt.title(instruments[i].get_name())
     plt.show()
-"""
+
+    onsets.append(peaks_sec)
+
+T_coef = np.arange(len(H[0])) / Fs_feature
+for i in range(len(onsets)):
+    plt.plot(onsets[i], [(i+1)*(100)]*len(onsets[i]), 'o', color=colors[i])
+plt.ylim(top=(i+2)*(100))
+plt.xlim(right=T_coef[-1])
+plt.show()
 
 # plot W and V
 """
