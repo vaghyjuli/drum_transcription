@@ -21,9 +21,12 @@ class Labels:
         for label, instrument in self.instruments.items():
             instrument.print_onsets()
 
-    def plot(self):
+    def plot(self, tick_duration):
+        fig, ax = plt.subplots(1)
         for label, instrument in self.instruments.items():
-            instrument.plot()
+            instrument.plot(tick_duration)
+        ax.set_yticklabels([])
+        plt.xlabel('Time (s)')
         plt.show()
 
     class Instrument:
@@ -39,9 +42,10 @@ class Labels:
         def print_onsets(self):
             print(self.label, self.onsets)
 
-        def plot(self):
+        def plot(self, tick_duration):
             for onset in self.onsets:
-                plt.plot(onset, (self.idx+1)*(-200), 'o', color=self.color)
+                plt.plot(onset*tick_duration, (self.idx+1)*(200), 'o', color=self.color)
+                # convert to seconds
 
 drums = set()
 
@@ -69,7 +73,7 @@ for msg in mid.tracks[0]:
         labels.add_onset(msg.note, ticks)
 
 labels.print_onsets()
-labels.plot()
+labels.plot(mid.length/ticks)
 
 print(f"time signature {time_signature_msg.numerator}/{time_signature_msg.denominator}")
 print(f"clocks_per_click = {time_signature_msg.clocks_per_click}")
