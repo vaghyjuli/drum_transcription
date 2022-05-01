@@ -12,19 +12,25 @@ from scipy import signal
 class Instrument:
     def __init__(self, file_name, path):
         self.name = file[:-4]
+        ## OPTIMIZE : window length, hop length, num of bands
         self.N = 2048
         self.H = 512
 
         x, self.Fs = librosa.load(path)
+        ## OPTIMIZE : STFT or Mel
         X = librosa.stft(x, n_fft=self.N, hop_length=self.H, win_length=self.N, window='hann', center=True, pad_mode='constant')
-        self.Y = np.log(1 + 10 * np.abs(X))
+        ## OPTIMIZE : degree of logarithmic compression
+        # logarithmic compression https://www.audiolabs-erlangen.de/resources/MIR/FMP/C3/C3S1_LogCompression.html
+        self.Y = np.log(1 + 10 * np.abs(X)) # self.Y.shape = (1025, T)
+        ## OPTIMIZE : what frequencies to take
         # take only the lower frequency part
-        self.Y = self.Y[0:100,:]
+        self.Y = self.Y[0:100,:] # self.Y.shape = (100, T)
+        ## OPTIMIZE : normalization
         self.Y = normalize_feature_sequence(X=self.Y, norm="z")
         self.self_sim = np.dot(np.transpose(self.Y), self.Y)
         onset_lim = len(self.self_sim)
         for i in range(len(self.self_sim[0])):
-            # ARBITRARY -> optimize
+            ## OPTIMIZE : self-similarity threshold - and partitioning into more than 2 parts
             if self.self_sim[0][i] < 60:
                 onset_lim = i
                 self.templates = [np.mean(self.Y[:, :onset_lim], axis=1), np.mean(self.Y[:, onset_lim:], axis=1)]
@@ -40,7 +46,7 @@ class Instrument:
         right = max(T_coef) + self.N / self.Fs
         lower = min(F_coef)
         upper = max(F_coef)
-        plt.imshow(self.Y, origin='lower', aspect='auto', cmap='gray_r', extent=[left, right, lower, upper])
+        plt.imshow(self.Y, vmin=0, origin='lower', aspect='auto', cmap='gray_r', extent=[left, right, lower, upper])
         plt.xlabel('Time (seconds)')
         plt.ylabel('Frequency (Hz)')
         plt.title('Normalized spectrogram')
@@ -65,11 +71,11 @@ class Instrument:
         norm_options = ["1", "2", "max", "z"]
         for i in range(4):
             plt.subplot(3, 2, (i+1))
-            plt.imshow(normalize_feature_sequence(X=self.Y, norm=norm_options[i]), origin='lower', aspect='auto', cmap='gray_r', extent=[left, right, lower, upper])
+            plt.imshow(normalize_feature_sequence(X=self.Y, norm=norm_options[i]), vmin=0, origin='lower', aspect='auto', cmap='gray_r', extent=[left, right, lower, upper])
             plt.xlabel('Time (seconds)')
             plt.ylabel('Frequency (Hz)')
         ax = plt.subplot(3, 2, 5)
-        plt.imshow(self.Y, origin='lower', aspect='auto', cmap='gray_r', extent=[left, right, lower, upper])
+        plt.imshow(self.Y, vmin=0, origin='lower', aspect='auto', cmap='gray_r', extent=[left, right, lower, upper])
         plt.xlabel('Time (seconds)')
         plt.ylabel('Frequency (Hz)')
         plt.show()
@@ -80,6 +86,7 @@ class Instrument:
     def get_name(self):
         return self.name
 
+## OPTIMIZE : thresh
 def nmf(V, R, thresh=0.001, L=1000, W=None, H=None, norm=False, report=False):
     K = V.shape[0]
     N = V.shape[1]
@@ -95,6 +102,7 @@ def nmf(V, R, thresh=0.001, L=1000, W=None, H=None, norm=False, report=False):
         H_ell = H
         W_ell = W
         H = H * (W.transpose().dot(V) / (W.transpose().dot(W).dot(H) + eps_machine))
+        ## OPTIMIZE : W fixed, adaptive, added randomly initialized noise component
         #W = W * (V.dot(H.transpose()) / (W.dot(H).dot(H.transpose()) + eps_machine))
         H_error = np.linalg.norm(H-H_ell, ord=2)
         W_error = np.linalg.norm(W - W_ell, ord=2)
@@ -165,20 +173,22 @@ def normalize_feature_sequence(X, norm='2', threshold=0.0001, v=None):
 
     return X_norm
 
-recording_file = "/Users/juliavaghy/Desktop/transcribe-this/recording.wav"
+# recording_file = "/Users/juliavaghy/Desktop/transcribe-this/recording.wav"
+recording_file = "/Users/juliavaghy/Desktop/test_data/reggae_clint-west-kit/recording.wav"
 
 templates = []
 instruments = []
 
-folder_path = r'/Users/juliavaghy/Desktop/transcribe-this/instruments'
+# folder_path = r'/Users/juliavaghy/Desktop/transcribe-this/instruments'
+folder_path = r'/Users/juliavaghy/Desktop/test_data/reggae_clint-west-kit/instruments'
 os.chdir(folder_path)
 for file in glob.glob("*.wav"):
     file_path = os.path.join(folder_path, file)
     instruments.append(Instrument(file, file_path))
 
 for instrument in instruments:
-    #instrument.plot_recording()
-    #instrument.plot_normalized()
+    instrument.plot_recording()
+    instrument.plot_normalized()
     templates.append(instrument.get_templates())
 
 templates_flat = [item for sublist in templates for item in sublist]
@@ -193,7 +203,11 @@ X = librosa.stft(x, n_fft=N, hop_length=hop, win_length=N, window='hann', center
 Y = np.log(1 + 10 * np.abs(X))
 # take only the lower frequency part
 V = Y[0:100,:]
+#V = Y
+### OPTIMIZE: normalization
+#V = normalize_feature_sequence(X=V, norm="z")
 
+## OPTIMIZE: norm=True
 W, H, V_approx, V_approx_err, H_W_error = nmf(V=V, R=R, W=W_init)
 
 plt.imshow(H, cmap='hot', vmin=0, interpolation='nearest')
@@ -226,15 +240,19 @@ for i in range(len(instruments)):
     T_coef = np.append([-time_unit*2, -time_unit], T_coef)
 
     for k in range(len(activations)):
+        ### OPTIMIZE : suppress values below x
         if(activations[k] < 0.1): activations[k] = 0
     plt.plot(T_coef, activations, color=colors[i])
     H_diff = np.diff(activations)
     #half-wave rectification
     for k in range(len(H_diff)):
+        ### OPTIMIZE : suppress values below x
         if H_diff[k] < 0.1:
             H_diff[k] = 0
     plt.plot(T_coef[:-1], H_diff, color=colors[i+1])
+    ## OPTIMIZE : prominence
     peaks, properties = signal.find_peaks(H_diff, prominence=0.1)
+    ## OPTIMIZE : take peaks above mean/2
     height = np.mean(H_diff[peaks])/2
     peaks, properties = signal.find_peaks(H_diff, height=height)
     peaks_sec = T_coef[peaks] + time_unit
@@ -252,7 +270,6 @@ plt.xlim(right=T_coef[-1])
 plt.show()
 
 # plot W and V
-"""
 fig = plt.figure()
 plt.subplot(2, 2, 1)
 plt.imshow(W_init, cmap='hot', interpolation='nearest')
@@ -270,4 +287,3 @@ plt.subplot(2, 2, 2)
 plt.imshow(V_approx, cmap='hot', interpolation='nearest')
 plt.title('V_approx')
 plt.show()
-"""
