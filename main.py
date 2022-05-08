@@ -27,7 +27,9 @@ class Sample:
         self.midi_file = _midi_file
         self.wav_file = _wav_file
         self.instrument_codes = _instrument_codes
-        self.midi_labels = MIDILabels(_midi_file, _bpm)
+        self.midi_labels = MIDILabels(_midi_file, _bpm, _instrument_codes)
+        #self.midi_labels.print_onsets()
+        #self.midi_labels.plot()
 
     def __str__(self):
         return self.dir
@@ -35,20 +37,22 @@ class Sample:
     def __repr__(self):
         return self.dir
 
+
 class MIDILabels:
-    def __init__(self, _midi_file, _bpm):
+    def __init__(self, _midi_file, _bpm, _instrument_codes):
         self.bpm = _bpm
         mid = MidiFile(_midi_file, clip=True)
-        drums = set()
+        midi_notes = set()
         for msg in mid.tracks[0]:
             if not msg.is_meta:
-                drums.add(msg.note)
-        _instrument_labels = list(drums)
-        print(_instrument_labels)
+                midi_notes.add(msg.note) # each drum has its corresponding note in the MIDI file
+        midi_notes = sorted(list(midi_notes))
+        if midi_notes != sorted(list(_instrument_codes.keys())):
+            raise Exception("MIDI codes don't match those provided in info.txt")
         self.instruments = {}
         colors = ["blue", "green", "cyan", "magenta", "yellow", "black"]
-        for idx in range(len(_instrument_labels)):
-            self.instruments[_instrument_labels[idx]] = self.Instrument(_instrument_labels[idx], colors[idx%len(colors)], idx)
+        for idx in range(len(midi_notes)):
+            self.instruments[midi_notes[idx]] = Instrument(midi_notes[idx], colors[idx%len(colors)], idx)
         ticks = 0
         time_signature_msg = 0
         tempo = 0
@@ -77,26 +81,27 @@ class MIDILabels:
         plt.xlabel('Time (s)')
         plt.show()
 
-    class Instrument:
-        def __init__(self, _label, _color, _idx):
-            self.label = _label
-            self.color = _color
-            self.idx = _idx
-            self.onsets = []
 
-        def __str__(self):
-            return self.label
+class Instrument:
+    def __init__(self, _label, _color, _idx):
+        self.label = _label
+        self.color = _color
+        self.idx = _idx
+        self.onsets = []
 
-        def print_onsets(self):
-            print(f"{self.label}: {self.onsets}")
+    def __str__(self):
+        return self.label
 
-        def add_onset(self, onset):
-            self.onsets.append(onset)
+    def print_onsets(self):
+        print(f"{self.label}: {self.onsets}")
 
-        def plot(self, tick_duration):
-            for onset in self.onsets:
-                plt.plot(onset*tick_duration, (self.idx+1)*(200), 'o', color=self.color)
-                # convert to seconds
+    def add_onset(self, onset):
+        self.onsets.append(onset)
+
+    def plot(self, tick_duration):
+        for onset in self.onsets:
+            plt.plot(onset*tick_duration, (self.idx+1)*(200), 'o', color=self.color)
+            # convert to seconds
 
 
 class NMFLabels:
@@ -141,7 +146,11 @@ def read_data(data_folder):
             continue
         for midi_code, instrument_wav in instrument_codes.items():
             instrument_codes[midi_code] = make_path(instrument_wav)
-        samples.append(Sample(sample_directory, bpm, midi_file, wav_file, instrument_codes))
+        try:
+            samples.append(Sample(sample_directory, bpm, midi_file, wav_file, instrument_codes))
+        except Exception as error:
+            print(f"{error} in {sample_directory}")
+            continue
     return samples
 
 
