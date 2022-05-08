@@ -11,13 +11,24 @@ class Sample:
     """
     A class representing a single test sample.
 
+    Args:
+        _dir (str) : The name of the sample's directory.
+        _bpm (int): BPM of the recording.
+        _midi_file (str) : The path to the MIDI file.
+        _wav_file (str) : The path to the WAV recording.
+        _instrument_codes (dict of int: str) :
+            key : MIDI note of instrument in the MIDI file
+            value : The path to the WAV template of the instrument
+            For each instrument present in the sample.
+
     Attributes:
         dir (str) : The name of the sample's directory.
         midi_file (str) : The path to the MIDI file.
         wav_file (str) : The path to the WAV recording.
         instrument_codes (dict of int: str) :
-            key : MIDI note of instrument in the MIDI file
-            value : The path to the WAV template of the instrument
+            key : MIDI note of instrument in the MIDI file.
+            value : The path to the WAV template of the instrument.
+            For each instrument present in the sample.
         midi_labels (MIDILabels) : The labels extracted from the MIDI file.
 
     Methods:
@@ -39,6 +50,31 @@ class Sample:
 
 
 class MIDILabels:
+    """
+    A class storing the MIDI labels of a sample.
+
+    Args:
+        _midi_file (str): The path to the MIDI file.
+        _bpm (int): BPM of the recording.
+        _instrument_codes (dict of int: str) :
+            key : MIDI note of instrument in the MIDI file.
+            value : The path to the WAV template of the instrument.
+
+    Attributes:
+        bpm (int) : BPM of the MIDI file.
+        instruments (dict of int: Instrument) :
+            key : MIDI note of instrument.
+            value : Instrument object.
+        tick_duration (float): Duration of a tick.
+
+    Raises:
+        Exception : MIDI codes don't match those provided in info.txt.
+
+    Methods:
+        print_onsets()
+        plot()
+    """
+
     def __init__(self, _midi_file, _bpm, _instrument_codes):
         self.bpm = _bpm
         mid = MidiFile(_midi_file, clip=True)
@@ -70,12 +106,19 @@ class MIDILabels:
         self.tick_duration = (mid.length/ticks) * (120/self.bpm)
 
     def print_onsets(self):
-        for label, instrument in self.instruments.items():
+        """
+        Prints the onset ticks for each instrument.
+            Instrument MIDI note: [onset ticks]
+        """
+        for midi_note, instrument in self.instruments.items():
             instrument.print_onsets()
 
     def plot(self):
+        """
+        Visualizes the MIDI file's onsets in a plot.
+        """
         fig, ax = plt.subplots(1)
-        for label, instrument in self.instruments.items():
+        for midi_note, instrument in self.instruments.items():
             instrument.plot(self.tick_duration)
         ax.set_yticklabels([])
         plt.xlabel('Time (s)')
@@ -83,17 +126,41 @@ class MIDILabels:
 
 
 class Instrument:
-    def __init__(self, _label, _color, _idx):
-        self.label = _label
+    """
+    A class storing the onsets and MIDI note of a given instrument in a sample.
+
+    Args:
+        _midi_note (int): MIDI note of instrument.
+        _color (str): Allocated color, to be used for plotting.
+        _idx (int) : Allocated instrument index in the sample, to be used for plotting.
+
+    Attributes:
+        midi_note (int): MIDI note of instrument.
+        color (str): Allocated color, to be used for plotting.
+        idx (int) : Allocated instrument index in the sample, to be used for plotting.
+        onsets (ndarray int): Array containig the onset ticks of the instrument.
+
+    Methods:
+        print_onsets()
+        add_onset()
+        plot()
+        compare()
+    """
+    def __init__(self, _midi_note, _color, _idx):
+        self.midi_note = _midi_note
         self.color = _color
         self.idx = _idx
-        self.onsets = []
+        self.onsets = [] # tick
 
     def __str__(self):
-        return self.label
+        return self.midi_note
 
     def print_onsets(self):
-        print(f"{self.label}: {self.onsets}")
+        """
+        Print the instrument's MIDI onset ticks.
+            Instrument MIDI note: [onset ticks]
+        """
+        print(f"{self.midi_note}: {self.onsets}")
 
     def add_onset(self, onset):
         self.onsets.append(onset)
@@ -103,6 +170,13 @@ class Instrument:
             plt.plot(onset*tick_duration, (self.idx+1)*(200), 'o', color=self.color)
             # convert to seconds
 
+    def compare(self, other):
+        """
+        Evaluate distance to another Instrument object
+        """
+        for onset in other.onsets:
+            pass
+
 
 class NMFLabels:
     def __init__(self):
@@ -110,6 +184,48 @@ class NMFLabels:
 
 
 def read_data(data_folder):
+    """
+    Main loop for reading data. If data in a sample does not align with the required format, it is skipped
+    (not included in evaluation), and the user is notified via a message printed to the terminal.
+
+    Parameters:
+    data_folder (srt): The main folder in which the samples are located, structured as follows.
+
+    data_folder
+    |   
+    +-- 1
+    |  |  
+    |  +-- sample.mid
+    |  +-- sample.wav
+    |  +-- info.txt
+    |  \-- instruments
+    |       |
+    |       +-- instrument1.wav
+    |       +-- instrument2.wav
+    |       +-- instrumen3.wav
+    |       +-- ...
+    +-- 2
+    |   |
+    |  +-- sample.mid
+    |  +-- sample.wav
+    |  +-- info.txt
+    |  \-- instruments
+    |       |
+    |       +-- instrument1.wav
+    |       +-- instrument2.wav
+    |       +-- instrumen3.wav
+    |       +-- ...
+    |
+    +-- 3
+    |   |
+    |   +-- sample.mid
+    | ...
+
+
+    Returns:
+    ndarray Sample : An array of Sample objects, extracted from the specified data folder. 
+
+    """
     samples = []
     os.chdir(data_folder)
     sample_directories = [item for item in os.listdir() if os.path.isdir(item)]
@@ -130,6 +246,8 @@ def read_data(data_folder):
             n_instruments = len(data) - 4
             try:
                 bpm = int(data[0].split()[0])
+                # BPM is not stored in MIDI files exported from Ableton
+                # so it has to be extracted from info.txt
             except Exception as error:
                 print(f"Failed to identify BPM in {sample_directory}")
                 continue
