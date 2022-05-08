@@ -8,13 +8,26 @@ import matplotlib.pyplot as plt
 
 
 class Sample:
+    """
+    A class representing a single test sample.
+
+    Attributes:
+        dir (str) : The name of the sample's directory.
+        midi_file (str) : The path to the MIDI file.
+        wav_file (str) : The path to the WAV recording.
+        instrument_codes (dict of int: str) :
+            key : MIDI note of instrument in the MIDI file
+            value : The path to the WAV template of the instrument
+        midi_labels (MIDILabels) : The labels extracted from the MIDI file.
+
+    Methods:
+    """
     def __init__(self, _dir, _bpm, _midi_file, _wav_file, _instrument_codes):
         self.dir = _dir
-        self.bpm = _bpm
         self.midi_file = _midi_file
         self.wav_file = _wav_file
         self.instrument_codes = _instrument_codes
-        self.init_midi_labels()
+        self.midi_labels = MIDILabels(_midi_file, _bpm)
 
     def __str__(self):
         return self.dir
@@ -22,13 +35,20 @@ class Sample:
     def __repr__(self):
         return self.dir
 
-    def init_midi_labels(self):
-        mid = MidiFile(self.midi_file, clip=True)
+class MIDILabels:
+    def __init__(self, _midi_file, _bpm):
+        self.bpm = _bpm
+        mid = MidiFile(_midi_file, clip=True)
         drums = set()
         for msg in mid.tracks[0]:
             if not msg.is_meta:
                 drums.add(msg.note)
-        self.labels = MIDILabels(list(drums))
+        _instrument_labels = list(drums)
+        print(_instrument_labels)
+        self.instruments = {}
+        colors = ["blue", "green", "cyan", "magenta", "yellow", "black"]
+        for idx in range(len(_instrument_labels)):
+            self.instruments[_instrument_labels[idx]] = self.Instrument(_instrument_labels[idx], colors[idx%len(colors)], idx)
         ticks = 0
         time_signature_msg = 0
         tempo = 0
@@ -41,30 +61,18 @@ class Sample:
                 continue
             ticks += msg.time
             if msg.type == 'note_on':
-                self.labels.add_onset(msg.note, ticks)
-        #self.labels.print_onsets()
+                self.instruments[msg.note].add_onset(ticks)
         # DO: the conversion below might be incorrect
-        #self.labels.plot((mid.length/ticks) * (120/self.bpm))
-
-
-class MIDILabels:
-    def __init__(self, _instrument_labels):
-        self.instruments = {}
-        colors = ["blue", "green", "cyan", "magenta", "yellow", "black"]
-        for idx in range(len(_instrument_labels)):
-            self.instruments[_instrument_labels[idx]] = self.Instrument(_instrument_labels[idx], colors[idx%len(colors)], idx)
-
-    def add_onset(self, instrument_label, onset):
-        self.instruments[instrument_label].add_onset(onset)
+        self.tick_duration = (mid.length/ticks) * (120/self.bpm)
 
     def print_onsets(self):
         for label, instrument in self.instruments.items():
             instrument.print_onsets()
 
-    def plot(self, tick_duration):
+    def plot(self):
         fig, ax = plt.subplots(1)
         for label, instrument in self.instruments.items():
-            instrument.plot(tick_duration)
+            instrument.plot(self.tick_duration)
         ax.set_yticklabels([])
         plt.xlabel('Time (s)')
         plt.show()
@@ -122,7 +130,7 @@ def read_data(data_folder):
                 continue
             try:
                 for i in range(4, len(data)):
-                    instrument_codes[data[i].split()[0]] = data[i].split()[1]
+                    instrument_codes[int(data[i].split()[0])] = data[i].split()[1]
             except Exception as error:
                 print(f"Failed to identify instrument codes in {sample_directory}")
                 continue
@@ -140,3 +148,4 @@ def read_data(data_folder):
 data_folder = r'/Users/juliavaghy/Desktop/0-syth_data/data'
 samples = read_data(data_folder)
 print(f"Included folders: {samples}")
+#print(Sample.__doc__)
