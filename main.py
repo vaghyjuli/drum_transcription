@@ -5,6 +5,8 @@ import mido
 from mido import MidiFile
 from mido import Message
 import matplotlib.pyplot as plt
+import librosa
+import numpy as np
 
 
 class Sample:
@@ -31,7 +33,6 @@ class Sample:
             For each instrument present in the sample.
         midi_labels (MIDILabels) : The labels extracted from the MIDI file.
 
-    Methods:
     """
     def __init__(self, _dir, _bpm, _midi_file, _wav_file, _instrument_codes):
         self.dir = _dir
@@ -88,7 +89,7 @@ class MIDILabels:
         self.instruments = {}
         colors = ["blue", "green", "cyan", "magenta", "yellow", "black"]
         for idx in range(len(midi_notes)):
-            self.instruments[midi_notes[idx]] = Instrument(midi_notes[idx], colors[idx%len(colors)], idx)
+            self.instruments[midi_notes[idx]] = Instrument(midi_notes[idx], colors[idx%len(colors)], idx, _instrument_codes[midi_notes[idx]])
         ticks = 0
         time_signature_msg = 0
         tempo = 0
@@ -101,10 +102,11 @@ class MIDILabels:
                 continue
             ticks += msg.time
             if msg.type == 'note_on':
-                self.instruments[msg.note].add_onset(ticks)
+                self.instruments[msg.note].add_midi_onset(ticks)
         # DO: the conversion below might be incorrect
         self.tick_duration = (mid.length/ticks) * (120/self.bpm)
 
+    # rewrite to print_midi_onsets()
     def print_onsets(self):
         """
         Prints the onset ticks for each instrument.
@@ -113,6 +115,7 @@ class MIDILabels:
         for midi_note, instrument in self.instruments.items():
             instrument.print_onsets()
 
+    # rewrite to plot_midi()
     def plot(self):
         """
         Visualizes the MIDI file's onsets in a plot.
@@ -123,7 +126,6 @@ class MIDILabels:
         ax.set_yticklabels([])
         plt.xlabel('Time (s)')
         plt.show()
-
 
 class Instrument:
     """
@@ -139,18 +141,22 @@ class Instrument:
         color (str): Allocated color, to be used for plotting.
         idx (int) : Allocated instrument index in the sample, to be used for plotting.
         onsets (ndarray int): Array containig the onset ticks of the instrument.
+        N (int) : STFT window size
+        H (int) : STFT hop size
 
     Methods:
         print_onsets()
-        add_onset()
+        add_midi_onset()
         plot()
         compare()
     """
-    def __init__(self, _midi_note, _color, _idx):
+    def __init__(self, _midi_note, _color, _idx, _wav_file):
         self.midi_note = _midi_note
         self.color = _color
         self.idx = _idx
-        self.onsets = [] # tick
+        self.midi_onsets = [] # tick
+        self.wav_file = _wav_file
+        self.init_template()
 
     def __str__(self):
         return self.midi_note
@@ -160,10 +166,23 @@ class Instrument:
         Print the instrument's MIDI onset ticks.
             Instrument MIDI note: [onset ticks]
         """
-        print(f"{self.midi_note}: {self.onsets}")
+        print(f"{self.midi_note}: {self.midi_onsets}")
 
-    def add_onset(self, onset):
-        self.onsets.append(onset)
+    def add_midi_onset(self, onset):
+        self.midi_onsets.append(onset)
+
+    def init_template(self):
+        self.N = 2048
+        # TODO: fix N!
+        self.H = 512
+        x, self.Fs = librosa.load(self.wav_file)
+        X = librosa.stft(x, n_fft=self.N, hop_length=self.H, win_length=self.N, window='hann', center=True, pad_mode='constant')
+        self.Y = np.log(1 + 10 * np.abs(X)) # self.Y.shape = (1025, T)
+        self.Y = self.Y[0:100,:] # self.Y.shape = (100, T)
+        ## TODO: OPTIMIZE normalization
+        #self.Y = normalize_feature_sequence(X=self.Y, norm="z")
+        self.template = np.mean(self.Y, axis=1)
+        print(self.template)
 
     def plot(self, tick_duration):
         for onset in self.onsets:
@@ -189,41 +208,40 @@ def read_data(data_folder):
     (not included in evaluation), and the user is notified via a message printed to the terminal.
 
     Parameters:
-    data_folder (srt): The main folder in which the samples are located, structured as follows.
+        data_folder (srt): The main folder in which the samples are located, structured as follows.
 
-    data_folder
-    |   
-    +-- 1
-    |  |  
-    |  +-- sample.mid
-    |  +-- sample.wav
-    |  +-- info.txt
-    |  \-- instruments
-    |       |
-    |       +-- instrument1.wav
-    |       +-- instrument2.wav
-    |       +-- instrumen3.wav
-    |       +-- ...
-    +-- 2
-    |   |
-    |  +-- sample.mid
-    |  +-- sample.wav
-    |  +-- info.txt
-    |  \-- instruments
-    |       |
-    |       +-- instrument1.wav
-    |       +-- instrument2.wav
-    |       +-- instrumen3.wav
-    |       +-- ...
-    |
-    +-- 3
-    |   |
-    |   +-- sample.mid
-    | ...
-
+            data_folder
+            |   
+            +-- 1
+            |  |  
+            |  +-- sample.mid
+            |  +-- sample.wav
+            |  +-- info.txt
+            |  \-- instruments
+            |       |
+            |       +-- instrument1.wav
+            |       +-- instrument2.wav
+            |       +-- instrumen3.wav
+            |       +-- ...
+            +-- 2
+            |   |
+            |  +-- sample.mid
+            |  +-- sample.wav
+            |  +-- info.txt
+            |  \-- instruments
+            |       |
+            |       +-- instrument1.wav
+            |       +-- instrument2.wav
+            |       +-- instrumen3.wav
+            |       +-- ...
+            |
+            +-- 3
+            |   |
+            |   +-- sample.mid
+            | ...
 
     Returns:
-    ndarray Sample : An array of Sample objects, extracted from the specified data folder. 
+        ndarray Sample : An array of Sample objects, extracted from the specified data folder. 
 
     """
     samples = []
@@ -263,7 +281,7 @@ def read_data(data_folder):
             print(f"{missing_instruments} missing in {sample_directory}/instruments")
             continue
         for midi_code, instrument_wav in instrument_codes.items():
-            instrument_codes[midi_code] = make_path(instrument_wav)
+            instrument_codes[midi_code] = make_path(f"instruments/{instrument_wav}")
         try:
             samples.append(Sample(sample_directory, bpm, midi_file, wav_file, instrument_codes))
         except Exception as error:
