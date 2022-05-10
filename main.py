@@ -11,28 +11,25 @@ import numpy as np
 
 class Sample:
     """
-    A class representing a single test sample.
+        A class representing a single test sample.
 
-    Args:
-        _dir (str) : The name of the sample's directory.
-        _bpm (int): BPM of the recording.
-        _midi_file (str) : The path to the MIDI file.
-        _wav_file (str) : The path to the WAV recording.
-        _instrument_codes (dict of int: str) :
-            key : MIDI note of instrument in the MIDI file
-            value : The path to the WAV template of the instrument
-            For each instrument present in the sample.
+        Args:
+            _dir (str) : The name of the sample's directory.
+            _bpm (int): BPM of the recording.
+            _midi_file (str) : The path to the MIDI file.
+            _wav_file (str) : The path to the WAV recording.
+            _instrument_codes (dict of int: Instrument) :
+                key : the note of the instrument in the MIDI file.
+                value : The instrument object.
 
-    Attributes:
-        dir (str) : The name of the sample's directory.
-        midi_file (str) : The path to the MIDI file.
-        wav_file (str) : The path to the WAV recording.
-        instrument_codes (dict of int: str) :
-            key : MIDI note of instrument in the MIDI file.
-            value : The path to the WAV template of the instrument.
-            For each instrument present in the sample.
-        midi_labels (MIDILabels) : The labels extracted from the MIDI file.
-
+        Attributes:
+            dir (str) : The name of the sample's directory.
+            midi_file (str) : The path to the MIDI file.
+            wav_file (str) : The path to the WAV recording.
+            instrument_codes (dict of int: str) :
+                key : The note of the instrument in the MIDI file.
+                value : The instrument object.
+            midi_labels (Labels) : The labels extracted from the MIDI file.
     """
     def __init__(self, _dir, _bpm, _midi_file, _wav_file, _instrument_codes):
         self.dir = _dir
@@ -52,32 +49,33 @@ class Sample:
 
 class MIDILabels:
     """
-    A class storing the MIDI labels of a sample.
+        A class storing the MIDI labels of a sample.
 
-    Args:
-        _midi_file (str): The path to the MIDI file.
-        _bpm (int): BPM of the recording.
-        _instrument_codes (dict of int: str) :
-            key : MIDI note of instrument in the MIDI file.
-            value : The path to the WAV template of the instrument.
+        Args:
+            _midi_file (str): The path to the MIDI file.
+            _bpm (int): BPM of the recording.
+            _instrument_codes (dict of int: str) :
+                key : The note of instrument in the MIDI file.
+                value : The path to the WAV template of the instrument.
 
-    Attributes:
-        bpm (int) : BPM of the MIDI file.
-        instruments (dict of int: Instrument) :
-            key : MIDI note of instrument.
-            value : Instrument object.
-        tick_duration (float): Duration of a tick.
+        Attributes:
+            bpm (int) : BPM of the MIDI file.
+            instrument_codes (dict of int: Instrument) :
+                key : The note of instrument in the MIDI file.
+                value : The instrument object.
+            tick_duration (float): Duration of a tick.
 
-    Raises:
-        Exception : MIDI codes don't match those provided in info.txt.
+        Raises:
+            Exception : MIDI codes don't match those provided in info.txt.
 
-    Methods:
-        print_onsets()
-        plot()
+        Methods:
+            print_onsets()
+            plot()
     """
 
     def __init__(self, _midi_file, _bpm, _instrument_codes):
         self.bpm = _bpm
+        self.instrument_codes = _instrument_codes
         mid = MidiFile(_midi_file, clip=True)
         midi_notes = set()
         for msg in mid.tracks[0]:
@@ -86,10 +84,6 @@ class MIDILabels:
         midi_notes = sorted(list(midi_notes))
         if midi_notes != sorted(list(_instrument_codes.keys())):
             raise Exception("MIDI codes don't match those provided in info.txt")
-        self.instruments = {}
-        colors = ["blue", "green", "cyan", "magenta", "yellow", "black"]
-        for idx in range(len(midi_notes)):
-            self.instruments[midi_notes[idx]] = Instrument(midi_notes[idx], colors[idx%len(colors)], idx, _instrument_codes[midi_notes[idx]])
         ticks = 0
         time_signature_msg = 0
         tempo = 0
@@ -102,53 +96,62 @@ class MIDILabels:
                 continue
             ticks += msg.time
             if msg.type == 'note_on':
-                self.instruments[msg.note].add_midi_onset(ticks)
+                self.instrument_codes[msg.note].add_midi_onset(ticks)
         # DO: the conversion below might be incorrect
         self.tick_duration = (mid.length/ticks) * (120/self.bpm)
 
     # rewrite to print_midi_onsets()
     def print_onsets(self):
         """
-        Prints the onset ticks for each instrument.
-            Instrument MIDI note: [onset ticks]
+            Prints the onset ticks for each instrument.
+                Instrument MIDI note: [onset ticks]
         """
-        for midi_note, instrument in self.instruments.items():
+        for midi_note, instrument in self.instrument_codes.items():
             instrument.print_onsets()
 
     # rewrite to plot_midi()
     def plot(self):
         """
-        Visualizes the MIDI file's onsets in a plot.
+            Visualizes the MIDI file's onsets in a plot.
         """
         fig, ax = plt.subplots(1)
-        for midi_note, instrument in self.instruments.items():
+        for midi_note, instrument in self.instrument_codes.items():
             instrument.plot(self.tick_duration)
         ax.set_yticklabels([])
         plt.xlabel('Time (s)')
         plt.show()
 
+
+class NMFLabels:
+    def __init__(self, _wav_file, _instrument_codes):
+        self.wav_file = wav_file
+        pass
+
+
 class Instrument:
     """
-    A class storing the onsets and MIDI note of a given instrument in a sample.
+        A class storing the onsets and MIDI note of a given instrument in a sample.
 
-    Args:
-        _midi_note (int): MIDI note of instrument.
-        _color (str): Allocated color, to be used for plotting.
-        _idx (int) : Allocated instrument index in the sample, to be used for plotting.
+        Args:
+            _midi_note (int): MIDI note of instrument.
+            _color (str): Allocated color, to be used for plotting.
+            _idx (int) : Allocated instrument index in the sample, to be used for plotting.
+            _wav_file (str) : Path to the instrument's template recording.
 
-    Attributes:
-        midi_note (int): MIDI note of instrument.
-        color (str): Allocated color, to be used for plotting.
-        idx (int) : Allocated instrument index in the sample, to be used for plotting.
-        onsets (ndarray int): Array containig the onset ticks of the instrument.
-        N (int) : STFT window size
-        H (int) : STFT hop size
+        Attributes:
+            midi_note (int): MIDI note of instrument.
+            color (str): Allocated color, to be used for plotting.
+            idx (int) : Allocated instrument index in the sample, to be used for plotting.
+            onsets (ndarray int): Array containig the onset ticks of the instrument.
+            wav_file (str) : Path to the instrument's template recording.
+            N (int) : STFT window size
+            H (int) : STFT hop size
 
-    Methods:
-        print_onsets()
-        add_midi_onset()
-        plot()
-        compare()
+        Methods:
+            print_onsets()
+            add_midi_onset()
+            plot()
+            compare()
     """
     def __init__(self, _midi_note, _color, _idx, _wav_file):
         self.midi_note = _midi_note
@@ -156,6 +159,9 @@ class Instrument:
         self.idx = _idx
         self.midi_onsets = [] # tick
         self.wav_file = _wav_file
+        self.N = 512
+        # TODO: fix N! - change in NMF algo
+        self.H = 256
         self.init_template()
 
     def __str__(self):
@@ -163,8 +169,8 @@ class Instrument:
 
     def print_onsets(self):
         """
-        Print the instrument's MIDI onset ticks.
-            Instrument MIDI note: [onset ticks]
+            Print the instrument's MIDI onset ticks.
+                Instrument MIDI note: [onset ticks]
         """
         print(f"{self.midi_note}: {self.midi_onsets}")
 
@@ -172,20 +178,18 @@ class Instrument:
         self.midi_onsets.append(onset)
 
     def init_template(self):
-        self.N = 2048
-        # TODO: fix N!
-        self.H = 512
         x, self.Fs = librosa.load(self.wav_file)
         X = librosa.stft(x, n_fft=self.N, hop_length=self.H, win_length=self.N, window='hann', center=True, pad_mode='constant')
         self.Y = np.log(1 + 10 * np.abs(X)) # self.Y.shape = (1025, T)
-        self.Y = self.Y[0:100,:] # self.Y.shape = (100, T)
+        #self.Y = self.Y[0:100,:] # self.Y.shape = (100, T)
         ## TODO: OPTIMIZE normalization
         #self.Y = normalize_feature_sequence(X=self.Y, norm="z")
+        #print(self.Y.shape)
         self.template = np.mean(self.Y, axis=1)
-        print(self.template)
+        #print(self.template)
 
     def plot(self, tick_duration):
-        for onset in self.onsets:
+        for onset in self.midi_onsets:
             plt.plot(onset*tick_duration, (self.idx+1)*(200), 'o', color=self.color)
             # convert to seconds
 
@@ -197,52 +201,46 @@ class Instrument:
             pass
 
 
-class NMFLabels:
-    def __init__(self):
-        pass
-
-
 def read_data(data_folder):
     """
-    Main loop for reading data. If data in a sample does not align with the required format, it is skipped
-    (not included in evaluation), and the user is notified via a message printed to the terminal.
+        Main loop for reading data. If data in a sample does not align with the required format, it is skipped
+        (not included in evaluation), and the user is notified via a message printed to the terminal.
 
-    Parameters:
-        data_folder (srt): The main folder in which the samples are located, structured as follows.
+        Parameters:
+            data_folder (srt): The main folder in which the samples are located, structured as follows.
 
-            data_folder
-            |   
-            +-- 1
-            |  |  
-            |  +-- sample.mid
-            |  +-- sample.wav
-            |  +-- info.txt
-            |  \-- instruments
-            |       |
-            |       +-- instrument1.wav
-            |       +-- instrument2.wav
-            |       +-- instrumen3.wav
-            |       +-- ...
-            +-- 2
-            |   |
-            |  +-- sample.mid
-            |  +-- sample.wav
-            |  +-- info.txt
-            |  \-- instruments
-            |       |
-            |       +-- instrument1.wav
-            |       +-- instrument2.wav
-            |       +-- instrumen3.wav
-            |       +-- ...
-            |
-            +-- 3
-            |   |
-            |   +-- sample.mid
-            | ...
+                data_folder
+                |   
+                +-- 1
+                |  |  
+                |  +-- sample.mid
+                |  +-- sample.wav
+                |  +-- info.txt
+                |  \-- instruments
+                |       |
+                |       +-- instrument1.wav
+                |       +-- instrument2.wav
+                |       +-- instrumen3.wav
+                |       +-- ...
+                +-- 2
+                |   |
+                |  +-- sample.mid
+                |  +-- sample.wav
+                |  +-- info.txt
+                |  \-- instruments
+                |       |
+                |       +-- instrument1.wav
+                |       +-- instrument2.wav
+                |       +-- instrumen3.wav
+                |       +-- ...
+                |
+                +-- 3
+                |   |
+                |   +-- sample.mid
+                | ...
 
-    Returns:
-        ndarray Sample : An array of Sample objects, extracted from the specified data folder. 
-
+        Returns:
+            ndarray Sample : An array of Sample objects, extracted from the specified data folder. 
     """
     samples = []
     os.chdir(data_folder)
@@ -270,18 +268,21 @@ def read_data(data_folder):
                 print(f"Failed to identify BPM in {sample_directory}")
                 continue
             try:
+                colors = ["blue", "green", "cyan", "magenta", "yellow", "black"]
+                info_instruments = []
                 for i in range(4, len(data)):
-                    instrument_codes[int(data[i].split()[0])] = data[i].split()[1]
+                    midi_note = int(data[i].split()[0])
+                    info_instruments.append(data[i].split()[1])
+                    instrument_wav = make_path(f"instruments/{data[i].split()[1]}")
+                    instrument_codes[midi_note] = Instrument(midi_note, colors[i-4], i-4, instrument_wav)
             except Exception as error:
                 print(f"Failed to identify instrument codes in {sample_directory}")
                 continue
         os.chdir(make_path("instruments"))
-        missing_instruments = [i for i in instrument_codes.values() if i not in glob.glob("*.wav")]
+        missing_instruments = [instrument_wav for instrument_wav in info_instruments if instrument_wav not in glob.glob("*.wav")]
         if len(missing_instruments) > 0:
             print(f"{missing_instruments} missing in {sample_directory}/instruments")
             continue
-        for midi_code, instrument_wav in instrument_codes.items():
-            instrument_codes[midi_code] = make_path(f"instruments/{instrument_wav}")
         try:
             samples.append(Sample(sample_directory, bpm, midi_file, wav_file, instrument_codes))
         except Exception as error:
