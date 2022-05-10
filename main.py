@@ -35,9 +35,9 @@ class Sample:
         self.dir = _dir
         self.instrument_codes = _instrument_codes
         self.midi_labels = MIDILabels(_midi_file, _bpm, _instrument_codes)
-        #self.midi_labels.print_onsets()
-        #self.midi_labels.plot()
         self.nmf_labels = NMFLabels(_wav_file, _instrument_codes)
+        #self.midi_labels.print_onsets()
+        self.midi_labels.plot()
         #self.nmf_labels.plot_instrument_spectra()
         #self.nmf_labels.plot_template_matrix()
         #self.nmf_labels.plot_recording_spectrum()
@@ -100,7 +100,10 @@ class MIDILabels:
             if msg.type == 'note_on':
                 self.instrument_codes[msg.note].add_midi_onset(ticks)
         # DO: the conversion below might be incorrect
+        print(self.bpm, mid.length * (120/self.bpm))
         self.tick_duration = (mid.length/ticks) * (120/self.bpm)
+        for midi_note, instrument in self.instrument_codes.items():
+            instrument.set_tick_duration(self.tick_duration)
 
     def print_onsets(self):
         """
@@ -116,7 +119,7 @@ class MIDILabels:
         """
         fig, ax = plt.subplots(1)
         for midi_note, instrument in self.instrument_codes.items():
-            instrument.plot_midi(self.tick_duration)
+            instrument.plot_midi()
         ax.set_yticklabels([])
         plt.xlabel('Time (s)')
         plt.show()
@@ -126,8 +129,8 @@ class NMFLabels:
     def __init__(self, _wav_file, _instrument_codes):
         self.wav_file = _wav_file
         self.instrument_codes = _instrument_codes
-        self.N = 512
-        self.H = 256
+        self.window = 512
+        self.hop = 256
         self.initialize_template_matrix()
         self.calculate_STFT()
         self.nmf(init=True)
@@ -140,7 +143,7 @@ class NMFLabels:
 
     def calculate_STFT(self):
         x, self.Fs = librosa.load(self.wav_file)
-        X = librosa.stft(x, n_fft=self.N, hop_length=self.H, win_length=self.N, window='hann', center=True, pad_mode='constant')
+        X = librosa.stft(x, n_fft=self.window, hop_length=self.hop, win_length=self.window, window='hann', center=True, pad_mode='constant')
         self.V = np.log(1 + 10 * np.abs(X))
 
     def plot_template_matrix(self):
@@ -162,13 +165,13 @@ class NMFLabels:
             instrument.plot_recording()
 
     def plot_recording_spectrum(self):
-        T_coef = np.arange(self.Y.shape[1]) * self.H / self.Fs
-        F_coef = np.arange(self.Y.shape[0]) * self.Fs / self.N
+        T_coef = np.arange(self.V.shape[1]) * self.hop / self.Fs
+        F_coef = np.arange(self.V.shape[0]) * self.Fs / self.window
         left = min(T_coef)
-        right = max(T_coef) + self.N / self.Fs
+        right = max(T_coef) + self.window / self.Fs
         lower = min(F_coef)
         upper = max(F_coef)
-        plt.imshow(self.Y, vmin=0, origin='lower', aspect='auto', cmap='gray_r', extent=[left, right, lower, upper])
+        plt.imshow(self.V, vmin=0, origin='lower', aspect='auto', cmap='gray_r', extent=[left, right, lower, upper])
         plt.xlabel('Time (seconds)')
         plt.ylabel('Frequency (Hz)')
         plt.title('Spectrogram')
@@ -211,9 +214,11 @@ class NMFLabels:
         self.W = W
         self.H = H
         print(f"NMF finished with V_approx_err={V_approx_err}")
-
-    def find_onsets(self):
-        pass
+        i = 0
+        for midi_note, instrument in self.instrument_codes.items():
+            instrument.set_activation(H[i])
+            instrument.find_onsets()
+            i+=1
 
 class Instrument:
     """
@@ -246,8 +251,8 @@ class Instrument:
         self.idx = _idx
         self.midi_onsets = [] # tick
         self.wav_file = _wav_file
-        self.N = 512
-        self.H = 256
+        self.window = 512
+        self.hop = 256
         self.init_template()
 
     def __str__(self):
@@ -260,20 +265,23 @@ class Instrument:
         """
         print(f"{self.midi_note}: {self.midi_onsets}")
 
+    def set_tick_duration(self, tick_duration):
+        self.tick_duration = tick_duration
+
     def add_midi_onset(self, onset):
         self.midi_onsets.append(onset)
 
     def init_template(self):
         x, self.Fs = librosa.load(self.wav_file)
-        X = librosa.stft(x, n_fft=self.N, hop_length=self.H, win_length=self.N, window='hann', center=True, pad_mode='constant')
+        X = librosa.stft(x, n_fft=self.window, hop_length=self.hop, win_length=self.window, window='hann', center=True, pad_mode='constant')
         self.Y = np.log(1 + 10 * np.abs(X))
         self.template = np.mean(self.Y, axis=1)
 
     def plot_recording(self):
-        T_coef = np.arange(self.Y.shape[1]) * self.H / self.Fs
-        F_coef = np.arange(self.Y.shape[0]) * self.Fs / self.N
+        T_coef = np.arange(self.Y.shape[1]) * self.hop / self.Fs
+        F_coef = np.arange(self.Y.shape[0]) * self.Fs / self.window
         left = min(T_coef)
-        right = max(T_coef) + self.N / self.Fs
+        right = max(T_coef) + self.window / self.Fs
         lower = min(F_coef)
         upper = max(F_coef)
         plt.imshow(self.Y, vmin=0, origin='lower', aspect='auto', cmap='gray_r', extent=[left, right, lower, upper])
@@ -282,17 +290,36 @@ class Instrument:
         plt.title('Spectrogram')
         plt.show()
 
-    def plot_midi(self, tick_duration):
+    def plot_midi(self):
         for onset in self.midi_onsets:
-            plt.plot(onset*tick_duration, (self.idx+1)*(200), 'o', color=self.color)
+            plt.plot(onset*self.tick_duration, (self.idx+1)*(200), 'o', color=self.color)
             # convert to seconds
 
-    def compare(self, other):
-        """
-        Evaluate distance to another Instrument object
-        """
-        for onset in other.onsets:
-            pass
+    def set_activation(self, activations):
+        self.activations = activations
+
+    def find_onsets(self):
+        # half-wave rectification
+        half_wave = lambda arr : (np.abs(arr) + arr) / 2
+        Fs_feature = self.Fs / self.hop
+        T_coef = np.arange(len(self.activations)) / Fs_feature
+        novelty = half_wave(np.append([0], np.diff(self.activations)))
+        enhanced_novelty = half_wave(novelty - self.local_avg(novelty))
+        #plt.plot(T_coef, self.activations, color=self.color)
+        #plt.plot(T_coef, diff, color="black")
+        #plt.plot(T_coef, novelty, color="red")
+        plt.plot(T_coef, enhanced_novelty, color="blue")
+        for onset in self.midi_onsets:
+            plt.plot(onset*self.tick_duration, 0, 'o', color="red")
+        plt.show()
+
+    def local_avg(self, arr):
+        avg_window = 3
+        smoothed = np.zeros(arr.shape)
+        padded = np.append(np.append([0]*avg_window, arr), [0]*(avg_window+1))
+        for i in range(3, len(arr)+3):
+            smoothed[i-3] = np.mean(padded[i-avg_window:i+avg_window+1])
+        return smoothed
 
 
 def read_data(data_folder):
@@ -346,10 +373,12 @@ def read_data(data_folder):
             print(f"There should be a single MIDI file in {sample_directory}")
             continue
         midi_file = make_path(glob.glob("*.mid")[0])
+        print(midi_file)
         if len(glob.glob("*.wav")) != 1:
             print(f"There should be a single WAV file in {sample_directory}")
             continue
         wav_file = make_path(glob.glob("*.wav")[0])
+        print(wav_file)
         instrument_codes = {}
         with open ("info.txt", "r") as info_file:
             data = info_file.read().splitlines()
