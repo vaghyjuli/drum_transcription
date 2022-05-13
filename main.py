@@ -7,7 +7,7 @@ from mido import Message
 import matplotlib.pyplot as plt
 import librosa
 import numpy as np
-
+from scipy import signal
 
 class Sample:
     """
@@ -37,7 +37,7 @@ class Sample:
         self.midi_labels = MIDILabels(_midi_file, _bpm, _instrument_codes)
         self.nmf_labels = NMFLabels(_wav_file, _instrument_codes)
         #self.midi_labels.print_onsets()
-        self.midi_labels.plot()
+        #self.midi_labels.plot()
         #self.nmf_labels.plot_instrument_spectra()
         #self.nmf_labels.plot_template_matrix()
         #self.nmf_labels.plot_recording_spectrum()
@@ -47,6 +47,25 @@ class Sample:
 
     def __repr__(self):
         return self.dir
+
+    def evaluate(self, comment=False):
+        tp_count = 0
+        fp_count = 0
+        fn_count = 0
+        for midi_note, instrument in self.instrument_codes.items():
+            instrument.evaluate()
+            tp_count += instrument.tp_count
+            fp_count += instrument.fp_count
+            fn_count += instrument.fn_count
+        if comment:
+            precision = tp_count / (tp_count + fp_count)
+            recall = tp_count / (tp_count + fn_count)
+            f_measure = (2*tp_count) / (2*tp_count + fp_count + fn_count)
+            print(f"TP={tp_count}, FP={fp_count}, FN={fn_count}")
+            print(f"precision = {precision}")
+            print(f"recall = {recall}")
+            print(f"F-measure = {f_measure}")
+        return tp_count, fp_count, fn_count
 
 
 class MIDILabels:
@@ -99,8 +118,8 @@ class MIDILabels:
             ticks += msg.time
             if msg.type == 'note_on':
                 self.instrument_codes[msg.note].add_midi_onset(ticks)
-        # DO: the conversion below might be incorrect
-        print(self.bpm, mid.length * (120/self.bpm))
+        # TODO: the conversion below might be incorrect
+        #print(self.bpm, mid.length * (120/self.bpm))
         self.tick_duration = (mid.length/ticks) * (120/self.bpm)
         for midi_note, instrument in self.instrument_codes.items():
             instrument.set_tick_duration(self.tick_duration)
@@ -178,8 +197,8 @@ class NMFLabels:
         plt.show()
 
     def nmf(self, init=False, norm=False, report=False):
-        thresh=0.001
-        L=1000
+        thresh = 0.001
+        L = 1000
         R = len(self.instrument_codes)
         K = self.V.shape[0]
         N = self.V.shape[1]
@@ -193,7 +212,7 @@ class NMFLabels:
             H_ell = H
             W_ell = W
             H = H * (W.transpose().dot(self.V) / (W.transpose().dot(W).dot(H) + eps_machine))
-            W = W * (self.V.dot(H.transpose()) / (W.dot(H).dot(H.transpose()) + eps_machine))
+            #W = W * (self.V.dot(H.transpose()) / (W.dot(H).dot(H.transpose()) + eps_machine))
             H_error = np.linalg.norm(H - H_ell, ord=2)
             W_error = np.linalg.norm(W - W_ell, ord=2)
             H_W_error[:, ell-1] = [H_error, W_error]
@@ -213,7 +232,7 @@ class NMFLabels:
         V_approx_err = np.linalg.norm(self.V - self.V_approx, ord=2)
         self.W = W
         self.H = H
-        print(f"NMF finished with V_approx_err={V_approx_err}")
+        #print(f"NMF finished with V_approx_err={V_approx_err}\n")
         i = 0
         for midi_note, instrument in self.instrument_codes.items():
             instrument.set_activation(H[i])
@@ -254,6 +273,9 @@ class Instrument:
         self.window = 512
         self.hop = 256
         self.init_template()
+        self.tp_count = 0    # true positives
+        self.fp_count =0     # false positives
+        self.fn_count = 0    # false negatives
 
     def __str__(self):
         return self.midi_note
@@ -298,20 +320,43 @@ class Instrument:
     def set_activation(self, activations):
         self.activations = activations
 
-    def find_onsets(self):
+    def find_onsets(self, plot=False):
         # half-wave rectification
         half_wave = lambda arr : (np.abs(arr) + arr) / 2
         Fs_feature = self.Fs / self.hop
         T_coef = np.arange(len(self.activations)) / Fs_feature
         novelty = half_wave(np.append([0], np.diff(self.activations)))
         enhanced_novelty = half_wave(novelty - self.local_avg(novelty))
-        #plt.plot(T_coef, self.activations, color=self.color)
-        #plt.plot(T_coef, diff, color="black")
-        #plt.plot(T_coef, novelty, color="red")
-        plt.plot(T_coef, enhanced_novelty, color="blue")
-        for onset in self.midi_onsets:
-            plt.plot(onset*self.tick_duration, 0, 'o', color="red")
-        plt.show()
+        peaks, properties = signal.find_peaks(enhanced_novelty, prominence=0.5)
+        self.nmf_onsets = T_coef[peaks]
+
+        if plot:
+            plt.plot(T_coef, enhanced_novelty, color="blue")
+            for onset in self.midi_onsets:
+                plt.plot(onset*self.tick_duration, 0, 'o', color="red")
+            plt.plot(self.nmf_onsets, [-0.1 for k in range(len(self.nmf_onsets))], 'o', color="black")
+            plt.show()
+
+    def evaluate(self):
+        nmf_idx = 0
+        for midi_idx in range(len(self.midi_onsets)):
+            if nmf_idx >= len(self.nmf_onsets):
+                self.fn_count += len(self.midi_onsets) - midi_idx
+                break
+            onset_sec = self.midi_onsets[midi_idx] * self.tick_duration
+            distance = abs(onset_sec - self.nmf_onsets[nmf_idx])
+            while (nmf_idx+1 < len(self.nmf_onsets)) and (abs(onset_sec - self.nmf_onsets[nmf_idx+1]) < distance):
+                self.fp_count += 1
+                nmf_idx += 1
+                distance = abs(onset_sec - self.nmf_onsets[nmf_idx])
+            if distance <= 0.05:
+                self.tp_count += 1
+                nmf_idx += 1
+            else:
+                self.fn_count += 1
+        if nmf_idx < len(self.nmf_onsets)-1:
+            self.fp_count += len(self.nmf_onsets) - nmf_idx - 1
+        #print(f"{self.wav_file}\nTP={self.tp_count}\nFP={self.fp_count}\nFN={self.fn_count}\n")
 
     def local_avg(self, arr):
         avg_window = 3
@@ -373,12 +418,10 @@ def read_data(data_folder):
             print(f"There should be a single MIDI file in {sample_directory}")
             continue
         midi_file = make_path(glob.glob("*.mid")[0])
-        print(midi_file)
         if len(glob.glob("*.wav")) != 1:
             print(f"There should be a single WAV file in {sample_directory}")
             continue
         wav_file = make_path(glob.glob("*.wav")[0])
-        print(wav_file)
         instrument_codes = {}
         with open ("info.txt", "r") as info_file:
             data = info_file.read().splitlines()
@@ -413,8 +456,22 @@ def read_data(data_folder):
             continue
     return samples
 
-
 data_folder = r'/Users/juliavaghy/Desktop/0-syth_data/data'
 samples = read_data(data_folder)
-print(f"Included folders: {samples}")
+print(f"\nIncluded samples: {samples}\n")
+tp_count = 0
+fp_count = 0
+fn_count = 0
+for sample in samples:
+    tp_sample, fp_sample, fn_sample = sample.evaluate()
+    tp_count += tp_sample
+    fp_count += fp_sample
+    fn_count += fn_sample
+precision = tp_count / (tp_count + fp_count)
+recall = tp_count / (tp_count + fn_count)
+f_measure = (2*tp_count) / (2*tp_count + fp_count + fn_count)
+print(f"TP={tp_count}, FP={fp_count}, FN={fn_count}")
+print(f"precision = {precision}")
+print(f"recall = {recall}")
+print(f"F-measure = {f_measure}\n")
 #print(Sample.__doc__)
