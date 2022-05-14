@@ -145,20 +145,31 @@ class MIDILabels:
 
 
 class NMFLabels:
-    def __init__(self, _wav_file, _instrument_codes):
+    def __init__(self, _wav_file, _instrument_codes, _nmf_type='NMFD'):
         self.wav_file = _wav_file
         self.instrument_codes = _instrument_codes
         self.window = 512
         self.hop = 256
-        self.initialize_template_matrix()
         self.calculate_STFT()
-        self.nmf(init=True)
+        self.nmf_type = _nmf_type
+        self.initialize_template_matrix()
+        self.factorize()
         #self.plot_template_matrix()
         #self.plot_activation_matrix()
 
     def initialize_template_matrix(self):
-        templates = [instrument.template for midi_note, instrument in self.instrument_codes.items()]
+        if self.nmf_type == 'NMF':
+            templates = [instrument.template for midi_note, instrument in self.instrument_codes.items()]
+        elif self.nmf_type == 'NMFD':
+            T = max([instrument.Y.shape[1] for midi_note, instrument in self.instrument_codes.items()])
+            templates = [instrument.template_2D(T) for midi_note, instrument in self.instrument_codes.items()]
         self.W_init = np.array(templates, dtype=np.float64).transpose()
+    
+    def factorize(self):
+        if self.nmf_type == 'NMF':
+            self.nmf(init=True)
+        elif self.nmf_type == 'NMFD':
+            self.nmfd()
 
     def calculate_STFT(self):
         x, self.Fs = librosa.load(self.wav_file)
@@ -239,6 +250,14 @@ class NMFLabels:
             instrument.find_onsets()
             i+=1
 
+    def nmfd(self):
+        L = 1000
+        R = len(self.instrument_codes)
+        K = self.V.shape[0]
+        N = self.V.shape[1]
+        T = self.W_init.shape[0]
+        print(T)
+
 class Instrument:
     """
         A class storing the onsets and MIDI note of a given instrument in a sample.
@@ -298,6 +317,35 @@ class Instrument:
         X = librosa.stft(x, n_fft=self.window, hop_length=self.hop, win_length=self.window, window='hann', center=True, pad_mode='constant')
         self.Y = np.log(1 + 10 * np.abs(X))
         self.template = np.mean(self.Y, axis=1)
+
+    def template_2D(self, T, plot=False):
+        """
+            For NMFD.
+
+            Args
+                T: int
+                    num of timeframes in the 2D template
+        """
+        K = self.Y.shape[0]
+        pad_len = T - self.Y.shape[1]
+        template2D = self.Y
+        for _ in range(pad_len):
+            template2D = np.append(template2D, np.zeros((K, 1)), axis=1)
+
+        if plot:
+            T_coef = np.arange(template2D.shape[1]) * self.hop / self.Fs
+            F_coef = np.arange(template2D.shape[0]) * self.Fs / self.window
+            left = min(T_coef)
+            right = max(T_coef) + self.window / self.Fs
+            lower = min(F_coef)
+            upper = max(F_coef)
+            plt.imshow(template2D, vmin=0, origin='lower', aspect='auto', cmap='gray_r', extent=[left, right, lower, upper])
+            plt.xlabel('Time (seconds)')
+            plt.ylabel('Frequency (Hz)')
+            plt.title('Spectrogram')
+            plt.show()
+
+        return template2D
 
     def plot_recording(self):
         T_coef = np.arange(self.Y.shape[1]) * self.hop / self.Fs
