@@ -36,7 +36,7 @@ class Sample:
         self.dir = _dir
         self.instrument_codes = _instrument_codes
         self.midi_labels = MIDILabels(_midi_file, _bpm, _instrument_codes)
-        self.nmf_labels = NMFLabels(_wav_file, _instrument_codes)
+        self.nmf_labels = NMFLabels(_wav_file, _instrument_codes, _nmf_type='NMF')
         #self.midi_labels.print_onsets()
         #self.midi_labels.plot()
         #self.nmf_labels.plot_instrument_spectra()
@@ -253,7 +253,6 @@ class NMFLabels:
             i+=1
 
     def nmfd(self):
-        L = 1000
         R = self.W_init.shape[1]
         K = self.V.shape[0]
         N = self.V.shape[1]
@@ -262,7 +261,7 @@ class NMFLabels:
         i = 0
         for midi_note, instrument in self.instrument_codes.items():
             instrument.set_activation(H[i])
-            instrument.find_onsets(plot=True)
+            instrument.find_onsets()
             i+=1
 
 class Instrument:
@@ -382,14 +381,15 @@ class Instrument:
         T_coef = np.arange(len(self.activations)) / Fs_feature
         novelty = half_wave(np.append([0], np.diff(self.activations)))
         enhanced_novelty = half_wave(novelty - self.local_avg(novelty))
-        peaks, properties = signal.find_peaks(enhanced_novelty, prominence=0.3)
+        height = max(enhanced_novelty)/4
+        peaks, properties = signal.find_peaks(enhanced_novelty, height=height)
         self.nmf_onsets = T_coef[peaks]
 
         if plot:
             plt.plot(T_coef, enhanced_novelty, color="blue")
             for onset in self.midi_onsets:
                 plt.plot(onset*self.tick_duration, 0, 'o', color="red")
-            plt.plot(self.nmf_onsets, [-0.1 for k in range(len(self.nmf_onsets))], 'o', color="black")
+            plt.plot(self.nmf_onsets, [-height/10 for k in range(len(self.nmf_onsets))], 'o', color="black")
             plt.show()
 
     def evaluate(self):
@@ -411,7 +411,7 @@ class Instrument:
                 self.fn_count += 1
         if nmf_idx < len(self.nmf_onsets)-1:
             self.fp_count += len(self.nmf_onsets) - nmf_idx - 1
-        print(f"{self.wav_file}\nTP={self.tp_count}\nFP={self.fp_count}\nFN={self.fn_count}\n")
+        #print(f"{self.wav_file}\nTP={self.tp_count}\nFP={self.fp_count}\nFN={self.fn_count}\n")
 
     def local_avg(self, arr):
         avg_window = 3
@@ -513,7 +513,7 @@ def read_data(data_folder):
 
 EPS = 2.0 ** -52
 
-def NMFD(V, T, R, W_init, L=10, fixW=False):
+def NMFD(V, T, R, W_init, L=50, fixW=False):
     """
         Non-Negative Matrix Factor Deconvolution with Kullback-Leibler-Divergence
         and fixable components.
