@@ -5,32 +5,27 @@ EPS = 2.0 ** -52
 
 def NMFD(V, W, L=50, fixW=False):
     """
-        Non-Negative Matrix Factor Deconvolution with Kullback-Leibler-Divergence
-        and fixable components.
-        Parameters
-        ----------
-        V: array-like
-            Matrix that shall be decomposed (typically a magnitude spectrogram of dimension
-            numBins x numFrames)
-        L: int
-            Number of NMFD iterations
-        T: int
-            Number of time frames for 2D-templates
-        R: int
-            Number of NMF components        
-        Returns
-        -------
-        W: array-like
-            List with the learned templates
-        H: array-like
-            Matrix with the learned activations
-        nmfdV: array-like
-            List with approximated component spectrograms
-        costFunc: array-like
-            The approximation quality per iteration
-        tensorW: array-like
-            If desired, we can also return the tensor
+        Non-Negative Matrix Factor Deconvolution with Kullback-Leibler-Divergence.
+
+        Parameters:
+            V (np.ndarray) : A 2D numpy array of size K x N, representing the magnitude
+                spectrogram with K spectral bands on N time steps.
+            W (np.ndarray) : A 3D numpy array of size K x R x T, representing template
+                magnitude spectrograms with K spectral bands on T time steps, for each
+                of the R instruments.
+            L (int) : The number of NMFD iterations.
+            fixW (bool) : Indicator for whether the template matrix should be fully
+                adaptive (= False) or fixed (= True).
+
+        Returns:
+            V_approx (np.ndarray) : A 2D numpy array of size K x N,  representing the
+                magnitude spectrogram approximated by the NMFD components.
+            W (np.ndarray) : A 3D numpy array of size K x R x T, representing the
+                (adapted) template magnitude spectrograms.
+            H (np.ndarray) : A 2D numpy array of size R x N, representing the activations
+                for each of the R instruments over N time steps.
     """
+
     # num of spectral bands, num of NMFD components, num of time frames in the component templates
     K, R, T = W.shape
     # num of spectral bands, num of time frames in the full spectrogram
@@ -42,7 +37,7 @@ def NMFD(V, W, L=50, fixW=False):
     onesMatrix = np.ones((K, N))
 
     for iteration in range(L):
-        # compute first approximation
+        H_prev = H
         V_approx = convModel(W, H)
 
         # compute the ratio of the input to the model
@@ -76,7 +71,7 @@ def NMFD(V, W, L=50, fixW=False):
             multH += addW
 
         # multiplicative update for H, with the average over all T template frames
-        H *= multH / T
+        H *= multH
 
     V_approx = convModel(W, H)
     return V_approx, W, H

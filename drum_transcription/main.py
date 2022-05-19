@@ -1,7 +1,7 @@
 from reader import read_data
 
-nmf_types = ["NMF", "NMFD"]
-fixW_options = [True]
+nmf_types = ["NMFD"]
+fixW_options = [True, False]
 window_sizes = [512]
 
 params = {}
