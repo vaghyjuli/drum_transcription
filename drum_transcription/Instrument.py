@@ -11,14 +11,16 @@ class Instrument:
             _color (str): Allocated color, to be used for plotting.
             _idx (int) : Allocated instrument index in the sample, to be used for plotting.
             _wav_file (str) : Path to the instrument's template recording.
+            _window (int) : STFT window size
+            _hop (int) : STFT hop size
         Attributes:
             midi_note (int): MIDI note of instrument.
             color (str): Allocated color, to be used for plotting.
             idx (int) : Allocated instrument index in the sample, to be used for plotting.
             onsets (ndarray int): Array containig the onset ticks of the instrument.
             wav_file (str) : Path to the instrument's template recording.
-            N (int) : STFT window size
-            H (int) : STFT hop size
+            window (int) : STFT window size
+            hop (int) : STFT hop size
         Methods:
             print_onsets()
             add_midi_onset()
