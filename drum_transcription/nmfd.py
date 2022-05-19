@@ -3,7 +3,7 @@ from copy import deepcopy
 
 EPS = 2.0 ** -52
 
-def NMFD(V, W_init, L=50, fixW=False):
+def NMFD(V, W, L=50, fixW=False):
     """
         Non-Negative Matrix Factor Deconvolution with Kullback-Leibler-Divergence
         and fixable components.
@@ -31,30 +31,19 @@ def NMFD(V, W_init, L=50, fixW=False):
         tensorW: array-like
             If desired, we can also return the tensor
     """
-    # use parameter nomenclature as in [2]
-    K, R, T = W_init.shape
+    # num of spectral bands, num of NMFD components, num of time frames in the component templates
+    K, R, T = W.shape
+    # num of spectral bands, num of time frames in the full spectrogram
     K, N = V.shape
-    initH = np.random.rand(R, N)
-    tensorW = np.zeros((K, R, T))
-    costFunc = np.zeros(L)
+    # initalize the activation matrix
+    H = np.random.rand(R, N)
 
-    # stack the templates into a tensor
-    for r in range(R):
-        tensorW[:, r, :] = W_init[:, r, :]
-
-    # the activations are matrix shaped
-    H = deepcopy(initH)
-
-    # create helper matrix of all ones (denoted as J in eq (5,6) in [2])
+    # helper matrix of all ones (denoted as J in eq (5,6) in [2])
     onesMatrix = np.ones((K, N))
 
     for iteration in range(L):
         # compute first approximation
-        V_approx = convModel(tensorW, H)
-
-        # store the divergence with respect to the target spectrogram
-        costMat = V * np.log(1.0 + V/(V_approx+EPS)) - V + V_approx
-        costFunc[iteration] = costMat.mean()
+        V_approx = convModel(W, H)
 
         # compute the ratio of the input to the model
         Q = V / (V_approx + EPS)
@@ -74,11 +63,11 @@ def NMFD(V, W_init, L=50, fixW=False):
             if not fixW:
                 # multiplicative update for W
                 multW = Q @ transpH / (onesMatrix @ transpH + EPS)
-                tensorW[:, :, t] *= multW
+                W[:, :, t] *= multW
 
             # The update rule for W as given in eq. (6) in [2]
             # pre-compute intermediate matrix for basis functions W
-            transpW = tensorW[:, :, t].T
+            transpW = W[:, :, t].T
 
             # compute update term for this tau
             addW = (transpW @ shiftOperator(Q, -tau)) / (transpW @ onesMatrix + EPS)
@@ -89,20 +78,8 @@ def NMFD(V, W_init, L=50, fixW=False):
         # multiplicative update for H, with the average over all T template frames
         H *= multH / T
 
-        # normalize templates to unit sum
-        #normVec = tensorW.sum(axis=2).sum(axis=0)
-
-        #tensorW *= 1.0 / (EPS+np.expand_dims(normVec, axis=1))
-
-    W = list()
-    nmfdV = list()
-
-    # compute final output approximation
-    for r in range(R):
-        W.append(tensorW[:, r, :])
-        nmfdV.append(convModel(np.expand_dims(tensorW[:, r, :], axis=1), np.expand_dims(H[r, :], axis=0)))
-
-    return W, H, nmfdV, costFunc, tensorW
+    V_approx = convModel(W, H)
+    return V_approx, W, H
 
 
 def convModel(W, H):
@@ -119,7 +96,7 @@ def convModel(W, H):
             Corresponding activations with dimensions: numComponents x numTargetFrames
         Returns
         -------
-        lamb: array-like
+        V_approx: array-like
             Approximated spectrogram matrix
     """
     # the more explicit matrix multiplication will be used
@@ -127,18 +104,18 @@ def convModel(W, H):
     R, N = H.shape
 
     # initialize with zeros
-    lamb = np.zeros((K, N))
+    V_approx = np.zeros((K, N))
 
     # this is doing the math as described in [2], eq (4)
     # the alternative conv2() method does not show speed advantages
 
     for k in range(T):
         multResult = W[:, :, k] @ shiftOperator(H, k)
-        lamb += multResult
+        V_approx += multResult
 
-    lamb += EPS
+    V_approx += EPS
 
-    return lamb
+    return V_approx
 
 
 def shiftOperator(A, shiftAmount):
@@ -172,8 +149,5 @@ def shiftOperator(A, shiftAmount):
 
     elif shiftAmount > 0:
         shifted[:, 0: shiftAmount] = 0
-
-    else:
-        pass
 
     return shifted

@@ -31,9 +31,9 @@ class NMFLabels:
 
     def factorize(self):
         if self.nmf_type == 'NMF':
-            V_approx, W, H = NMF(V=self.V, W_init=self.W_init, fixW=self.fixW)
+            V_approx, W, H = NMF(V=self.V, W=self.W_init, fixW=self.fixW)
         elif self.nmf_type == 'NMFD':
-            W, H, nmfdV, costFunc, tensorW = NMFD(V=self.V, W_init=self.W_init, fixW=self.fixW)
+            V_approx, W, H = NMFD(V=self.V, W=self.W_init, fixW=self.fixW)
         i = 0
         for midi_note, instrument in self.instrument_codes.items():
             instrument.set_activation(H[i])
