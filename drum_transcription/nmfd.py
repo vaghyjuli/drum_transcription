@@ -1,7 +1,9 @@
 import numpy as np
 from copy import deepcopy
 
-def NMFD(V, T, R, W_init, L=50, fixW=False):
+EPS = 2.0 ** -52
+
+def NMFD(V, W_init, L=50, fixW=False):
     """
         Non-Negative Matrix Factor Deconvolution with Kullback-Leibler-Divergence
         and fixable components.
@@ -30,6 +32,7 @@ def NMFD(V, T, R, W_init, L=50, fixW=False):
             If desired, we can also return the tensor
     """
     # use parameter nomenclature as in [2]
+    K, R, T = W_init.shape
     K, N = V.shape
     initH = np.random.rand(R, N)
     tensorW = np.zeros((K, R, T))
@@ -45,19 +48,16 @@ def NMFD(V, T, R, W_init, L=50, fixW=False):
     # create helper matrix of all ones (denoted as J in eq (5,6) in [2])
     onesMatrix = np.ones((K, N))
 
-    # this is important to prevent initial jumps in the divergence measure
-    V_tmp = V / (EPS + V.sum())
-
     for iteration in range(L):
         # compute first approximation
-        Lambda = convModel(tensorW, H)
+        V_approx = convModel(tensorW, H)
 
         # store the divergence with respect to the target spectrogram
-        costMat = V_tmp * np.log(1.0 + V_tmp/(Lambda+EPS)) - V_tmp + Lambda
+        costMat = V * np.log(1.0 + V/(V_approx+EPS)) - V + V_approx
         costFunc[iteration] = costMat.mean()
 
         # compute the ratio of the input to the model
-        Q = V_tmp / (Lambda + EPS)
+        Q = V / (V_approx + EPS)
 
         # accumulate activation updates here
         multH = np.zeros((R, N))
@@ -71,10 +71,9 @@ def NMFD(V, T, R, W_init, L=50, fixW=False):
             # pre-compute intermediate, shifted and transposed activation matrix
             transpH = shiftOperator(H, tau).T
 
-            # multiplicative update for W
-            multW = Q @ transpH / (onesMatrix @ transpH + EPS)
-
             if not fixW:
+                # multiplicative update for W
+                multW = Q @ transpH / (onesMatrix @ transpH + EPS)
                 tensorW[:, :, t] *= multW
 
             # The update rule for W as given in eq. (6) in [2]
@@ -91,9 +90,9 @@ def NMFD(V, T, R, W_init, L=50, fixW=False):
         H *= multH / T
 
         # normalize templates to unit sum
-        normVec = tensorW.sum(axis=2).sum(axis=0)
+        #normVec = tensorW.sum(axis=2).sum(axis=0)
 
-        tensorW *= 1.0 / (EPS+np.expand_dims(normVec, axis=1))
+        #tensorW *= 1.0 / (EPS+np.expand_dims(normVec, axis=1))
 
     W = list()
     nmfdV = list()

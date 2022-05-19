@@ -22,11 +22,11 @@ class Sample:
                 value : The instrument object.
             midi_labels (Labels) : The labels extracted from the MIDI file.
     """
-    def __init__(self, _dir, _bpm, _midi_file, _wav_file, _instrument_codes):
+    def __init__(self, _params, _dir, _bpm, _midi_file, _wav_file, _instrument_codes):
         self.dir = _dir
         self.instrument_codes = _instrument_codes
         self.midi_labels = MIDILabels(_midi_file, _bpm, _instrument_codes)
-        self.nmf_labels = NMFLabels(_wav_file, _instrument_codes, _nmf_type='NMF')
+        self.nmf_labels = NMFLabels(_params, _wav_file, _instrument_codes)
         #self.midi_labels.print_onsets()
         #self.midi_labels.plot()
         #self.nmf_labels.plot_instrument_spectra()

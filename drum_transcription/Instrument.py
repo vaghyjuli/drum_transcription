@@ -25,14 +25,14 @@ class Instrument:
             plot()
             compare()
     """
-    def __init__(self, _midi_note, _color, _idx, _wav_file):
+    def __init__(self, _midi_note, _color, _idx, _wav_file, _window, _hop):
         self.midi_note = _midi_note
         self.color = _color
         self.idx = _idx
         self.midi_onsets = [] # tick
         self.wav_file = _wav_file
-        self.window = 512
-        self.hop = 256
+        self.window = _window
+        self.hop = _hop
         self.init_template()
         self.tp_count = 0    # true positives
         self.fp_count =0     # false positives
