@@ -43,11 +43,11 @@ def read_data(data_folder, params):
             ndarray Sample : An array of Sample objects, extracted from the specified data folder. 
     """
     samples = []
-    os.chdir(data_folder)
+    os.chdir(os.path.join(data_folder, "data"))
     sample_directories = [item for item in os.listdir() if os.path.isdir(item)]
     for sample_directory in sample_directories:
-        os.chdir(os.path.join(data_folder, sample_directory))
-        make_path = lambda f : os.path.join(data_folder, sample_directory, f)
+        os.chdir(os.path.join(data_folder, "data", sample_directory))
+        make_path = lambda f : os.path.join(data_folder, "data", sample_directory, f)
         if len(glob.glob("*.mid")) != 1:
             print(f"There should be a single MIDI file in {sample_directory}")
             continue
@@ -57,18 +57,20 @@ def read_data(data_folder, params):
             continue
         wav_file = make_path(glob.glob("*.wav")[0])
         instrument_codes = {}
+        kit = ""
         with open ("info.txt", "r") as info_file:
             data = info_file.read().splitlines()
             n_instruments = len(data) - 4
             bpm = int(data[0].split()[0])
+            kit = data[2]
             colors = ["blue", "green", "cyan", "magenta", "yellow", "black"]
             info_instruments = []
             for i in range(4, len(data)):
                 midi_note = int(data[i].split()[0])
                 info_instruments.append(data[i].split()[1])
-                instrument_wav = make_path(f"instruments/{data[i].split()[1]}")
+                instrument_wav = os.path.join(data_folder, "kits", kit, "instruments", data[i].split()[1])
                 instrument_codes[midi_note] = Instrument(midi_note, colors[i-4], i-4, instrument_wav, params["window"], params["hop"])
-        os.chdir(make_path("instruments"))
+        os.chdir(os.path.join(data_folder, "kits", kit, "instruments"))
         missing_instruments = [instrument_wav for instrument_wav in info_instruments if instrument_wav not in glob.glob("*.wav")]
         if len(missing_instruments) > 0:
             print(f"{missing_instruments} missing in {sample_directory}/instruments")

@@ -19,7 +19,7 @@ for nmf_type in nmf_types:
 
                 print(params)
 
-                data_folder = r'/Users/juliavaghy/Desktop/0-syth_data/data'
+                data_folder = r'/Users/juliavaghy/Desktop/0-syth_data'
                 samples = read_data(data_folder, params)
                 print(f"\nIncluded samples: {samples}\n")
                 tp_count = 0
