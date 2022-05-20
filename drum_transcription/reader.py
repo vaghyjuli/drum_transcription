@@ -11,34 +11,41 @@ def read_data(data_folder, params):
         Parameters:
             data_folder (srt): The main folder in which the samples are located, structured as follows.
                 data_folder
-                |   
-                +-- 1
-                |  |  
-                |  +-- sample.mid
-                |  +-- sample.wav
-                |  +-- info.txt
-                |  \-- instruments
-                |       |
-                |       +-- instrument1.wav
-                |       +-- instrument2.wav
-                |       +-- instrumen3.wav
-                |       +-- ...
-                +-- 2
-                |   |
-                |  +-- sample.mid
-                |  +-- sample.wav
-                |  +-- info.txt
-                |  \-- instruments
-                |       |
-                |       +-- instrument1.wav
-                |       +-- instrument2.wav
-                |       +-- instrumen3.wav
-                |       +-- ...
                 |
-                +-- 3
+                +-- data
+                |   |   
+                |   +-- 1
+                |   |   |  
+                |   |   +-- sample.mid
+                |   |   +-- sample.wav
+                |   |   \-- info.txt
                 |   |
-                |   +-- sample.mid
-                | ...
+                |   +-- 2
+                |   |   |
+                |   |   +-- sample.mid
+                |   |   +-- sample.wav
+                |   |   \-- info.txt
+                |   ...
+                |
+                \-- kits
+                    |
+                    +-- 505
+                    |   |
+                    |   +-- instruments
+                    |       |
+                    |       +-- snaredrum.wav
+                    |       ...
+                    |       \-- bassdrum.wav
+                    |
+                    +-- 606
+                    |   |
+                    |   +-- instruments
+                    |       |
+                    |       +-- snare1.wav
+                    |       ...
+                    |       \-- closed-hi-hat.wav
+                    ...
+            
         Returns:
             ndarray Sample : An array of Sample objects, extracted from the specified data folder. 
     """
