@@ -3,6 +3,8 @@ import librosa
 import numpy as np
 from scipy import signal
 
+EPS = 2.0 ** -52
+
 class Instrument:
     """
         A class storing the onsets and MIDI note of a given instrument in a sample.
@@ -60,7 +62,20 @@ class Instrument:
         x, self.Fs = librosa.load(self.wav_file)
         X = librosa.stft(x, n_fft=self.window, hop_length=self.hop, win_length=self.window, window='hann', center=True, pad_mode='constant')
         self.Y = np.log(1 + 10 * np.abs(X))
-        self.template = np.mean(self.Y, axis=1)
+        self.template = np.mean(self.z_norm(self.Y), axis=1)
+
+    def z_norm(self, X, threshold=0.0001):
+        K, N = X.shape
+        X_norm = np.zeros((K, N))
+        v = np.zeros(K, dtype=np.float64)
+        for n in range(N):
+            mu = np.sum(X[:, n]) / K
+            sigma = np.sqrt(np.sum((X[:, n] - mu) ** 2) / (K - 1))
+            if sigma > threshold:
+                X_norm[:, n] = (X[:, n] - mu) / sigma
+            else:
+                X_norm[:, n] = v
+        return X_norm + EPS
 
     def template_2D(self, T, plot=False):
         """
