@@ -1,3 +1,4 @@
+import numpy as np
 from reader import read_data
 
 nmf_types = ["NMFD", "NMF"]
@@ -25,11 +26,13 @@ for nmf_type in nmf_types:
                 tp_count = 0
                 fp_count = 0
                 fn_count = 0
+                f_measures = []
                 for sample in samples:
-                    tp_sample, fp_sample, fn_sample = sample.evaluate()
+                    tp_sample, fp_sample, fn_sample, f_measure = sample.evaluate()
                     tp_count += tp_sample
                     fp_count += fp_sample
                     fn_count += fn_sample
+                    f_measures.append(f_measure)
 
                 if tp_count == 0:
                     precision = 0
@@ -43,3 +46,9 @@ for nmf_type in nmf_types:
                 print(f"precision = {precision}")
                 print(f"recall = {recall}")
                 print(f"F-measure = {f_measure}\n")
+
+                mean_f_measure = sum(f_measures) / len(f_measures)
+                sd_f_measure = np.std(f_measures)
+                for idx in range(len(f_measures)):
+                    if abs(mean_f_measure - f_measures[idx]) >= sd_f_measure:
+                        print(f"F={f_measures[idx]} in {samples[idx].dir}")
