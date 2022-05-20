@@ -1,8 +1,9 @@
 import numpy as np
+from copy import deepcopy
 
 EPS = 2.0 ** -52
 
-def NMF(V, W, L = 1000, threshold = 0.001, fixW=True):
+def NMF(V, W_init, L = 1000, threshold = 0.001, fixW=True, initH="random", beta=4):
     """
         Non-Negative Matrix Factor Deconvolution with Kullback-Leibler-Divergence.
 
@@ -27,9 +28,14 @@ def NMF(V, W, L = 1000, threshold = 0.001, fixW=True):
                 for each of the R instruments over N time steps.
     """
     
-    K, R = W.shape
+    K, R = W_init.shape
     K, N = V.shape
-    H = np.random.rand(R, N)
+    if initH == "random":
+        H = np.random.rand(R, N)
+    elif initH == "uniform":
+        H = np.ones(R, N)
+
+    W = deepcopy(W_init)
 
     #EPS = np.finfo(np.float32).eps
 
@@ -37,9 +43,12 @@ def NMF(V, W, L = 1000, threshold = 0.001, fixW=True):
     for iteration in range(L):
         H_prev = H
         H = H * (W.transpose().dot(V) / (W.transpose().dot(W).dot(H) + EPS))
-        if not fixW:
+        if fixW != "fixed":
             W_prev = W
             W = W * (V.dot(H.transpose()) / (W.dot(H).dot(H.transpose()) + EPS))
+            if fixW == "semi":
+                alpha = (1 - iteration / L)**beta
+                W = alpha * W_init + (1 - alpha) * W
             W_diff = np.linalg.norm(W - W_prev, ord=2)
         H_diff = np.linalg.norm(H - H_prev, ord=2)
         if H_diff < threshold and W_diff < threshold:

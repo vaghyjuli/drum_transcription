@@ -3,7 +3,7 @@ from copy import deepcopy
 
 EPS = 2.0 ** -52
 
-def NMFD(V, W, L=50, fixW=False):
+def NMFD(V, W_init, L=50, fixW=False, initH="random", beta=4):
     """
         Non-Negative Matrix Factor Deconvolution with Kullback-Leibler-Divergence.
 
@@ -27,11 +27,16 @@ def NMFD(V, W, L=50, fixW=False):
     """
 
     # num of spectral bands, num of NMFD components, num of time frames in the component templates
-    K, R, T = W.shape
+    K, R, T = W_init.shape
     # num of spectral bands, num of time frames in the full spectrogram
     K, N = V.shape
     # initalize the activation matrix
-    H = np.random.rand(R, N)
+    if initH == "random":
+        H = np.random.rand(R, N)
+    elif initH == "uniform":
+        H = np.ones(R, N)
+    
+    W = deepcopy(W_init)
 
     # helper matrix of all ones (denoted as J in eq (5,6) in [2])
     onesMatrix = np.ones((K, N))
@@ -55,10 +60,13 @@ def NMFD(V, W, L=50, fixW=False):
             # pre-compute intermediate, shifted and transposed activation matrix
             transpH = shiftOperator(H, tau).T
 
-            if not fixW:
+            if fixW != "fixed":
                 # multiplicative update for W
                 multW = Q @ transpH / (onesMatrix @ transpH + EPS)
                 W[:, :, t] *= multW
+                if fixW == "semi":
+                    alpha = (1 - iteration / L)**beta
+                    W[:, :, t] = alpha * W_init[:, :, t] + (1 - alpha) * W[:, :, t]
 
             # The update rule for W as given in eq. (6) in [2]
             # pre-compute intermediate matrix for basis functions W
