@@ -33,7 +33,7 @@ class MIDILabels:
         mid = MidiFile(_midi_file, clip=True)
         midi_notes = set()
         for msg in mid.tracks[0]:
-            if not msg.is_meta:
+            if msg.type == 'note_on':
                 midi_notes.add(msg.note) # each drum has its corresponding note in the MIDI file
         midi_notes = sorted(list(midi_notes))
         if midi_notes != sorted(list(_instrument_codes.keys())):

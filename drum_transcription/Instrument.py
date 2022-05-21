@@ -58,11 +58,20 @@ class Instrument:
     def add_midi_onset(self, onset):
         self.midi_onsets.append(onset)
 
-    def init_template(self):
+    def init_template(self, only_self_sim=True):
         x, self.Fs = librosa.load(self.wav_file)
         X = librosa.stft(x, n_fft=self.window, hop_length=self.hop, win_length=self.window, window='hann', center=True, pad_mode='constant')
         self.Y = np.log(1 + 10 * np.abs(X))
-        self.template = np.mean(self.z_norm(self.Y), axis=1)
+        self.self_sim = np.dot(np.transpose(self.Y), self.Y)
+        if only_self_sim:
+            onset_lim = len(self.self_sim)
+            for i in range(len(self.self_sim[0])):
+                if self.self_sim[0][i] < 60:
+                    onset_lim = i
+                    break
+            self.template = np.mean(self.Y[:, :onset_lim], axis=1)
+        else:
+            self.template = np.mean(self.Y, axis=1)
 
     def z_norm(self, X, threshold=0.0001):
         K, N = X.shape

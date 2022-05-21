@@ -49,11 +49,11 @@ class Sample:
             fp_count += instrument.fp_count
             fn_count += instrument.fn_count
         f_measure = (2*tp_count) / (2*tp_count + fp_count + fn_count)
+        precision = tp_count / (tp_count + fp_count)
+        recall = tp_count / (tp_count + fn_count)
         if comment:
-            precision = tp_count / (tp_count + fp_count)
-            recall = tp_count / (tp_count + fn_count)
             print(f"TP={tp_count}, FP={fp_count}, FN={fn_count}")
             print(f"precision = {precision}")
             print(f"recall = {recall}")
             print(f"F-measure = {f_measure}")
-        return tp_count, fp_count, fn_count, f_measure
+        return precision, recall, f_measure
