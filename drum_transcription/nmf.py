@@ -1,5 +1,6 @@
 import numpy as np
 from copy import deepcopy
+import matplotlib.pyplot as plt
 
 EPS = 2.0 ** -52
 
@@ -31,7 +32,7 @@ def NMF(V, W_init, L = 1000, threshold = 0.001, fixW=True, addedCompW=2, initH="
     K, R = W_init.shape
 
     # add randomoly initialized noise components to W
-    W_init = np.append(W_init, np.ones((K, addedCompW)) + EPS, axis=1)
+    W_init = np.append(W_init, np.random.rand(K, addedCompW) + EPS, axis=1)
     R += addedCompW
     
     if initH == "random":
@@ -41,6 +42,20 @@ def NMF(V, W_init, L = 1000, threshold = 0.001, fixW=True, addedCompW=2, initH="
 
     W = deepcopy(W_init)
     onesMatrix = np.ones((K, N))
+
+    """
+    fig = plt.figure(figsize=(4, 8))
+    ax = fig.add_subplot(111)
+    ax.imshow(W, cmap='gray', vmin=0, origin='lower', interpolation='nearest')
+    plt.title('W')
+    plt.show()
+
+    fig = plt.figure(figsize=(4, 8))
+    ax = fig.add_subplot(111)
+    ax.imshow(H, cmap='gray', vmin=0, origin='lower', interpolation='nearest')
+    plt.title('H')
+    plt.show()
+    """
 
     for iteration in range(L):
         V_approx = W.dot(H)
@@ -61,6 +76,20 @@ def NMF(V, W_init, L = 1000, threshold = 0.001, fixW=True, addedCompW=2, initH="
         H_diff = np.linalg.norm(H - H_prev, ord=2)
         if H_diff < threshold and W_diff < threshold:
             break
+
+    """
+    fig = plt.figure(figsize=(4, 8))
+    ax = fig.add_subplot(111)
+    ax.imshow(W, cmap='gray', vmin=0, origin='lower', interpolation='nearest')
+    plt.title('W')
+    plt.show()
+
+    fig = plt.figure(figsize=(4, 8))
+    ax = fig.add_subplot(111)
+    ax.imshow(H, cmap='gray', vmin=0, origin='lower', interpolation='nearest')
+    plt.title('H')
+    plt.show()
+    """
 
     V_approx = W.dot(H)
     return V_approx, W, H

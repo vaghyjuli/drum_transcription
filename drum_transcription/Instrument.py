@@ -141,14 +141,17 @@ class Instrument:
         half_wave = lambda arr : (np.abs(arr) + arr) / 2
         Fs_feature = self.Fs / self.hop
         T_coef = np.arange(len(self.activations)) / Fs_feature
+        #plt.plot(T_coef, self.activations, color="blue")
         novelty = half_wave(np.append([0], np.diff(self.activations)))
+        #plt.plot(T_coef, novelty, color="yellow")
         enhanced_novelty = half_wave(novelty - self.local_avg(novelty))
-        height = max(enhanced_novelty)/4
+        height = max(enhanced_novelty)/3
+        #plt.plot(T_coef, [height] * len(T_coef), color="gray")
         peaks, properties = signal.find_peaks(enhanced_novelty, height=height)
         self.nmf_onsets = T_coef[peaks]
 
         if plot:
-            plt.plot(T_coef, enhanced_novelty, color="blue")
+            plt.plot(T_coef, enhanced_novelty, color="orange")
             for onset in self.midi_onsets:
                 plt.plot(onset*self.tick_duration, 0, 'o', color="red")
             plt.plot(self.nmf_onsets, [-height/10 for k in range(len(self.nmf_onsets))], 'o', color="black")
