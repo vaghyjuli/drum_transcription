@@ -3,7 +3,7 @@ from copy import deepcopy
 
 EPS = 2.0 ** -52
 
-def NMF(V, W_init, L = 1000, threshold = 0.001, fixW=True, initH="random", beta=4):
+def NMF(V, W_init, L = 1000, threshold = 0.001, fixW=True, addedCompW=2, initH="random", beta=4):
     """
         Non-Negative Matrix Factor Deconvolution with Kullback-Leibler-Divergence.
 
@@ -27,31 +27,36 @@ def NMF(V, W_init, L = 1000, threshold = 0.001, fixW=True, initH="random", beta=
             H (np.ndarray) : A 2D numpy array of size R x N, representing the activations
                 for each of the R instruments over N time steps.
     """
-    
-    K, R = W_init.shape
     K, N = V.shape
+    K, R = W_init.shape
+
+    # add randomoly initialized noise components to W
+    W_init = np.append(W_init, np.ones((K, addedCompW)) + EPS, axis=1)
+    R += addedCompW
+    
     if initH == "random":
         H = np.random.rand(R, N)
     elif initH == "uniform":
         H = np.ones(R, N)
 
     W = deepcopy(W_init)
-    W_prev = deepcopy(W_init)
     onesMatrix = np.ones((K, N))
 
-    W_diff = 0
     for iteration in range(L):
         V_approx = W.dot(H)
         Q = V / (V_approx + EPS)
 
         H_prev = deepcopy(H)
         H = H * (W.transpose().dot(Q) / (W.transpose().dot(onesMatrix) + EPS))
-        if fixW != "fixed":
-            W_prev = deepcopy(W)
-            W = W * (Q.dot(H.transpose()) / (onesMatrix.dot(H.transpose()) + EPS))
-            if fixW == "semi":
-                alpha = (1 - iteration / L)**beta
-                W = alpha * W_init + (1 - alpha) * W
+        W_prev = deepcopy(W)
+        W = W * (Q.dot(H.transpose()) / (onesMatrix.dot(H.transpose()) + EPS))
+
+        if fixW == "fixed":
+            W[:, :R-addedCompW] = W_init[:, :R-addedCompW]
+        elif fixW == "semi":
+            alpha = (1 - iteration / L)**beta
+            W[:, :R-addedCompW] = alpha * W_init[:, :R-addedCompW] + (1 - alpha) * W[:, :R-addedCompW]
+
         W_diff = np.linalg.norm(W - W_prev, ord=2)
         H_diff = np.linalg.norm(H - H_prev, ord=2)
         if H_diff < threshold and W_diff < threshold:
