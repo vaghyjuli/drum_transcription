@@ -36,25 +36,26 @@ def NMF(V, W_init, L = 1000, threshold = 0.001, fixW=True, initH="random", beta=
         H = np.ones(R, N)
 
     W = deepcopy(W_init)
-
-    #EPS = np.finfo(np.float32).eps
+    W_prev = deepcopy(W_init)
+    onesMatrix = np.ones((K, N))
 
     W_diff = 0
     for iteration in range(L):
-        H_prev = H
-        H = H * (W.transpose().dot(V) / (W.transpose().dot(W).dot(H) + EPS))
+        V_approx = W.dot(H)
+        Q = V / (V_approx + EPS)
+
+        H_prev = deepcopy(H)
+        H = H * (W.transpose().dot(Q) / (W.transpose().dot(onesMatrix) + EPS))
         if fixW != "fixed":
-            W_prev = W
-            W = W * (V.dot(H.transpose()) / (W.dot(H).dot(H.transpose()) + EPS))
+            W_prev = deepcopy(W)
+            W = W * (Q.dot(H.transpose()) / (onesMatrix.dot(H.transpose()) + EPS))
             if fixW == "semi":
                 alpha = (1 - iteration / L)**beta
                 W = alpha * W_init + (1 - alpha) * W
-            W_diff = np.linalg.norm(W - W_prev, ord=2)
+        W_diff = np.linalg.norm(W - W_prev, ord=2)
         H_diff = np.linalg.norm(H - H_prev, ord=2)
         if H_diff < threshold and W_diff < threshold:
             break
 
     V_approx = W.dot(H)
-    V_approx_err = np.linalg.norm(V - V_approx, ord=2)
-    #print(f"NMF finished with V_approx_err={V_approx_err}\n")
     return V_approx, W, H

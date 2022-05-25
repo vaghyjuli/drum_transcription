@@ -1,7 +1,8 @@
 import numpy as np
 from reader import read_data
 
-nmf_types = ["NMFD", "NMF"]
+#nmf_types = ["NMFD", "NMF"]
+nmf_types = ["NMF"]
 activation_inits = ["random", "uniform"]
 fixW_options = ["adaptive", "semi", "fixed"]
 window_sizes = [512]
