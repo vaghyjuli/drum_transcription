@@ -70,7 +70,7 @@ def read_data(data_folder, params):
             n_instruments = len(data) - 4
             bpm = int(data[0].split()[0])
             kit = data[2]
-            colors = ["blue", "green", "cyan", "magenta", "yellow", "black"]
+            colors = ["blue", "green", "cyan", "magenta", "yellow", "black", "orange"]
             info_instruments = []
             for i in range(4, len(data)):
                 midi_note = int(data[i].split()[0])

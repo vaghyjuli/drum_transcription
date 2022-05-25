@@ -62,8 +62,9 @@ class Instrument:
         x, self.Fs = librosa.load(self.wav_file)
         X = librosa.stft(x, n_fft=self.window, hop_length=self.hop, win_length=self.window, window='hann', center=True, pad_mode='constant')
         self.Y = np.log(1 + 10 * np.abs(X))
-        self.self_sim = np.dot(np.transpose(self.Y), self.Y)
+        #self.Y = np.abs(X) + EPS
         if only_self_sim:
+            self.self_sim = np.dot(np.transpose(self.Y), self.Y)
             onset_lim = len(self.self_sim)
             for i in range(len(self.self_sim[0])):
                 if self.self_sim[0][i] < 60:
@@ -97,7 +98,7 @@ class Instrument:
         pad_len = T - self.Y.shape[1]
         template2D = self.Y
         for _ in range(pad_len):
-            template2D = np.append(template2D, np.zeros((K, 1)), axis=1)
+            template2D = np.append(template2D, np.zeros((K, 1)) + EPS, axis=1)
 
         if plot:
             T_coef = np.arange(template2D.shape[1]) * self.hop / self.Fs

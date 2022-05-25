@@ -6,6 +6,8 @@ from Instrument import Instrument
 from nmfd import *
 from nmf import *
 
+EPS = 2.0 ** -52
+
 class NMFLabels:
     def __init__(self, _params, _wav_file, _instrument_codes):
         self.wav_file = _wav_file
@@ -45,6 +47,7 @@ class NMFLabels:
         x, self.Fs = librosa.load(self.wav_file)
         X = librosa.stft(x, n_fft=self.window, hop_length=self.hop, win_length=self.window, window='hann', center=True, pad_mode='constant')
         self.V = np.log(1 + 10 * np.abs(X))
+        #self.V = np.abs(X) + EPS
 
     def plot_template_matrix(self):
         fig = plt.figure(figsize=(4, 8))
