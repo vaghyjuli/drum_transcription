@@ -76,7 +76,7 @@ def read_data(data_folder, params):
                 midi_note = int(data[i].split()[0])
                 info_instruments.append(data[i].split()[1])
                 instrument_wav = os.path.join(data_folder, "kits", kit, "instruments", data[i].split()[1])
-                instrument_codes[midi_note] = Instrument(midi_note, colors[i-4], i-4, instrument_wav, params["window"], params["hop"])
+                instrument_codes[midi_note] = Instrument(midi_note, colors[i-4], i-4, instrument_wav, params)
         os.chdir(os.path.join(data_folder, "kits", kit, "instruments"))
         missing_instruments = [instrument_wav for instrument_wav in info_instruments if instrument_wav not in glob.glob("*.wav")]
         if len(missing_instruments) > 0:

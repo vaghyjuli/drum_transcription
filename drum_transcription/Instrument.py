@@ -24,23 +24,28 @@ class Instrument:
             window (int) : STFT window size
             hop (int) : STFT hop size
         Methods:
-            print_onsets()
+            print_onsets()s
             add_midi_onset()
             plot()
             compare()
     """
-    def __init__(self, _midi_note, _color, _idx, _wav_file, _window, _hop):
+    def __init__(self, _midi_note, _color, _idx, _wav_file, _params):
         self.midi_note = _midi_note
         self.color = _color
         self.idx = _idx
         self.midi_onsets = [] # tick
         self.wav_file = _wav_file
-        self.window = _window
-        self.hop = _hop
+        self.params = _params
         self.init_template()
         self.tp_count = 0    # true positives
         self.fp_count =0     # false positives
         self.fn_count = 0    # false negatives
+
+        theta = {
+            "NMF" : 3,
+            "NMFD" : 4
+        }
+        self.THETA = theta[self.params["nmf_type"]]
 
     def __str__(self):
         return self.midi_note
@@ -60,7 +65,7 @@ class Instrument:
 
     def init_template(self, only_self_sim=True):
         x, self.Fs = librosa.load(self.wav_file)
-        X = librosa.stft(x, n_fft=self.window, hop_length=self.hop, win_length=self.window, window='hann', center=True, pad_mode='constant')
+        X = librosa.stft(x, n_fft=self.params["window"], hop_length=self.params["hop"], win_length=self.params["window"], window='hann', center=True, pad_mode='constant')
         self.Y = np.log(1 + 10 * np.abs(X))
         #self.Y = np.abs(X) + EPS
         if only_self_sim:
@@ -109,10 +114,10 @@ class Instrument:
             template2D = np.append(template2D, np.zeros((K, 1)) + EPS, axis=1)
 
         if plot:
-            T_coef = np.arange(template2D.shape[1]) * self.hop / self.Fs
-            F_coef = np.arange(template2D.shape[0]) * self.Fs / self.window
+            T_coef = np.arange(template2D.shape[1]) * self.params["hop"] / self.Fs
+            F_coef = np.arange(template2D.shape[0]) * self.Fs / self.params["window"]
             left = min(T_coef)
-            right = max(T_coef) + self.window / self.Fs
+            right = max(T_coef) + self.params["window"] / self.Fs
             lower = min(F_coef)
             upper = max(F_coef)
             plt.imshow(template2D, vmin=0, origin='lower', aspect='auto', cmap='gray_r', extent=[left, right, lower, upper])
@@ -124,10 +129,10 @@ class Instrument:
         return template2D
 
     def plot_recording(self):
-        T_coef = np.arange(self.Y.shape[1]) * self.hop / self.Fs
-        F_coef = np.arange(self.Y.shape[0]) * self.Fs / self.window
+        T_coef = np.arange(self.Y.shape[1]) * self.params["hop"] / self.Fs
+        F_coef = np.arange(self.Y.shape[0]) * self.Fs / self.params["window"]
         left = min(T_coef)
-        right = max(T_coef) + self.window / self.Fs
+        right = max(T_coef) + self.params["window"] / self.Fs
         lower = min(F_coef)
         upper = max(F_coef)
         plt.imshow(self.Y, vmin=0, origin='lower', aspect='auto', cmap='gray_r', extent=[left, right, lower, upper])
@@ -147,13 +152,13 @@ class Instrument:
     def find_onsets(self, plot=False):
         # half-wave rectification
         half_wave = lambda arr : (np.abs(arr) + arr) / 2
-        Fs_feature = self.Fs / self.hop
+        Fs_feature = self.Fs / self.params["hop"]
         T_coef = np.arange(len(self.activations)) / Fs_feature
         #plt.plot(T_coef, self.activations, color="blue")
         novelty = half_wave(np.append([0], np.diff(self.activations)))
         #plt.plot(T_coef, novelty, color="yellow")
         enhanced_novelty = half_wave(novelty - self.local_avg(novelty))
-        height = max(enhanced_novelty)/3
+        height = max(enhanced_novelty)/self.THETA
         #plt.plot(T_coef, [height] * len(T_coef), color="gray")
         peaks, properties = signal.find_peaks(enhanced_novelty, height=height)
         self.nmf_onsets = T_coef[peaks]

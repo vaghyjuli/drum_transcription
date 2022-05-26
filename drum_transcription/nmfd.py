@@ -3,7 +3,7 @@ from copy import deepcopy
 
 EPS = 2.0 ** -52
 
-def NMFD(V, W_init, L=50, fixW=False, initH="random", beta=4):
+def NMFD(V, W_init, params, L=50, beta=4):
     """
         Non-Negative Matrix Factor Deconvolution with Kullback-Leibler-Divergence.
 
@@ -31,10 +31,10 @@ def NMFD(V, W_init, L=50, fixW=False, initH="random", beta=4):
     # num of spectral bands, num of time frames in the full spectrogram
     K, N = V.shape
     # initalize the activation matrix
-    if initH == "random":
+    if params["initH"] == "random":
         H = np.random.rand(R, N)
-    elif initH == "uniform":
-        H = np.ones(R, N)
+    elif params["initH"] == "uniform":
+        H = np.ones((R, N))
     
     W = deepcopy(W_init)
 
@@ -60,11 +60,11 @@ def NMFD(V, W_init, L=50, fixW=False, initH="random", beta=4):
             # pre-compute intermediate, shifted and transposed activation matrix
             transpH = shiftOperator(H, tau).T
 
-            if fixW != "fixed":
+            if params["fixW"] != "fixed":
                 # multiplicative update for W
                 multW = Q @ transpH / (onesMatrix @ transpH + EPS)
                 W[:, :, t] *= multW
-                if fixW == "semi":
+                if params["fixW"] == "semi":
                     alpha = (1 - iteration / L)**beta
                     W[:, :, t] = alpha * W_init[:, :, t] + (1 - alpha) * W[:, :, t]
 

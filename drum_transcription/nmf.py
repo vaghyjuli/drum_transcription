@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 EPS = 2.0 ** -52
 
-def NMF(V, W_init, L = 1000, threshold = 0.001, fixW=True, addedCompW=2, initH="random", beta=4):
+def NMF(V, W_init, params, L = 1000, threshold = 0.001, beta=4):
     """
         Non-Negative Matrix Factor Deconvolution with Kullback-Leibler-Divergence.
 
@@ -32,13 +32,13 @@ def NMF(V, W_init, L = 1000, threshold = 0.001, fixW=True, addedCompW=2, initH="
     K, R = W_init.shape
 
     # add randomoly initialized noise components to W
-    W_init = np.append(W_init, np.random.rand(K, addedCompW) + EPS, axis=1)
-    R += addedCompW
+    W_init = np.append(W_init, np.random.rand(K, params["addedCompW"]) + EPS, axis=1)
+    R += params["addedCompW"]
     
-    if initH == "random":
+    if params["initH"] == "random":
         H = np.random.rand(R, N)
-    elif initH == "uniform":
-        H = np.ones(R, N)
+    elif params["initH"] == "uniform":
+        H = np.ones((R, N))
 
     W = deepcopy(W_init)
     onesMatrix = np.ones((K, N))
@@ -66,11 +66,11 @@ def NMF(V, W_init, L = 1000, threshold = 0.001, fixW=True, addedCompW=2, initH="
         W_prev = deepcopy(W)
         W = W * (Q.dot(H.transpose()) / (onesMatrix.dot(H.transpose()) + EPS))
 
-        if fixW == "fixed":
-            W[:, :R-addedCompW] = W_init[:, :R-addedCompW]
-        elif fixW == "semi":
+        if params["fixW"] == "fixed":
+            W[:, :R-params["addedCompW"]] = W_init[:, :R-params["addedCompW"]]
+        elif params["fixW"] == "semi":
             alpha = (1 - iteration / L)**beta
-            W[:, :R-addedCompW] = alpha * W_init[:, :R-addedCompW] + (1 - alpha) * W[:, :R-addedCompW]
+            W[:, :R-params["addedCompW"]] = alpha * W_init[:, :R-params["addedCompW"]] + (1 - alpha) * W[:, :R-params["addedCompW"]]
 
         W_diff = np.linalg.norm(W - W_prev, ord=2)
         H_diff = np.linalg.norm(H - H_prev, ord=2)
