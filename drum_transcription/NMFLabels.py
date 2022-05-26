@@ -17,6 +17,7 @@ class NMFLabels:
         self.nmf_type = _params["nmf_type"]
         self.fixW = _params["fixW"]
         self.initH = _params["initH"]
+        self.addedCompW = _params["addedCompW"]
         self.calculate_STFT()
         self.initialize_template_matrix()
         self.factorize()
@@ -34,7 +35,9 @@ class NMFLabels:
 
     def factorize(self):
         if self.nmf_type == 'NMF':
-            V_approx, W, H = NMF(V=self.V, W_init=self.W_init, fixW=self.fixW)
+            cropped = [instrument.is_cropped for midi_note, instrument in self.instrument_codes.items()]
+            self.n_cropped = sum(cropped)
+            V_approx, W, H = NMF(V=self.V, W_init=self.W_init, fixW=self.fixW, addedCompW=self.addedCompW)
         elif self.nmf_type == 'NMFD':
             V_approx, W, H = NMFD(V=self.V, W_init=self.W_init, fixW=self.fixW)
         i = 0

@@ -64,25 +64,33 @@ class Instrument:
         self.Y = np.log(1 + 10 * np.abs(X))
         #self.Y = np.abs(X) + EPS
         if only_self_sim:
-            self.self_sim = np.dot(np.transpose(self.Y), self.Y)
-            onset_lim = len(self.self_sim)
-            for i in range(len(self.self_sim[0])):
-                if self.self_sim[0][i] < 60:
+            normalized_Y = self.normalize(self.Y)
+            self_sim = np.dot(np.transpose(normalized_Y), normalized_Y)
+            onset_lim = len(self_sim[0])
+            self.is_cropped = False
+            for i in range(len(self_sim[0])):
+                if self_sim[0][i] < 0.4:
                     onset_lim = i
+                    self.is_cropped = True
                     break
             self.template = np.mean(self.Y[:, :onset_lim], axis=1)
         else:
             self.template = np.mean(self.Y, axis=1)
 
-    def z_norm(self, X, threshold=0.0001):
+    def is_cropped(self):
+        return self.is_cropped
+
+    def normalize(self, X, threshold=0.0001):
+        """
+        Normalize feature sequence with respect to the Euclidian norm.
+        """
         K, N = X.shape
         X_norm = np.zeros((K, N))
-        v = np.zeros(K, dtype=np.float64)
+        v = np.ones(K, dtype=np.float64) / np.sqrt(K)
         for n in range(N):
-            mu = np.sum(X[:, n]) / K
-            sigma = np.sqrt(np.sum((X[:, n] - mu) ** 2) / (K - 1))
-            if sigma > threshold:
-                X_norm[:, n] = (X[:, n] - mu) / sigma
+            s = np.sqrt(np.sum(X[:, n] ** 2)) + EPS
+            if s > threshold:
+                X_norm[:, n] = X[:, n] / s
             else:
                 X_norm[:, n] = v
         return X_norm + EPS
