@@ -74,7 +74,7 @@ class Instrument:
             onset_lim = len(self_sim[0])
             self.is_cropped = False
             for i in range(len(self_sim[0])):
-                if self_sim[0][i] < 0.4:
+                if self_sim[0][i] < self.params["sim_threshold"]:
                     onset_lim = i
                     self.is_cropped = True
                     break

@@ -3,7 +3,7 @@ from copy import deepcopy
 
 EPS = 2.0 ** -52
 
-def NMFD(V, W_init, params, L=50, beta=4):
+def NMFD(V, W_init, params, L=50):
     """
         Non-Negative Matrix Factor Deconvolution with Kullback-Leibler-Divergence.
 
@@ -30,11 +30,19 @@ def NMFD(V, W_init, params, L=50, beta=4):
     K, R, T = W_init.shape
     # num of spectral bands, num of time frames in the full spectrogram
     K, N = V.shape
+
+    W_init = np.append(W_init, np.random.rand(K, params["addedCompW"], T) + EPS, axis=1)
+    R += params["addedCompW"]
+
     # initalize the activation matrix
-    if params["initH"] == "random":
-        H = np.random.rand(R, N)
-    elif params["initH"] == "uniform":
+    if params["initH"] == None or params["initH"] == "uniform":
         H = np.ones((R, N))
+    elif params["initH"] == "random":
+        H = np.random.rand(R, N)
+
+    if params["beta"] == None:
+        print("beta 4 nmfd")
+        params["beta"] = 4
     
     W = deepcopy(W_init)
 
@@ -60,13 +68,15 @@ def NMFD(V, W_init, params, L=50, beta=4):
             # pre-compute intermediate, shifted and transposed activation matrix
             transpH = shiftOperator(H, tau).T
 
-            if params["fixW"] != "fixed":
-                # multiplicative update for W
-                multW = Q @ transpH / (onesMatrix @ transpH + EPS)
-                W[:, :, t] *= multW
-                if params["fixW"] == "semi":
-                    alpha = (1 - iteration / L)**beta
-                    W[:, :, t] = alpha * W_init[:, :, t] + (1 - alpha) * W[:, :, t]
+            # multiplicative update for W
+            multW = Q @ transpH / (onesMatrix @ transpH + EPS)
+            W[:, :, t] *= multW
+
+            if params["fixW"] == "fixed":
+                W[:, :R-params["addedCompW"], t] = W_init[:, :R-params["addedCompW"], t]            
+            elif params["fixW"] == "semi":
+                alpha = (1 - iteration / L)**params["beta"]
+                W[:, :R-params["addedCompW"], t] = alpha * W_init[:, :R-params["addedCompW"], t] + (1 - alpha) * W[:, :R-params["addedCompW"], t]
 
             # The update rule for W as given in eq. (6) in [2]
             # pre-compute intermediate matrix for basis functions W

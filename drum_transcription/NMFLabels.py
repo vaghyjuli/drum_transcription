@@ -13,14 +13,6 @@ class NMFLabels:
         self.wav_file = _wav_file
         self.instrument_codes = _instrument_codes
         self.params = _params
-        """
-        self.window = _params["window"]
-        self.hop = _params["hop"]
-        self.nmf_type = _params["nmf_type"]
-        self.fixW = _params["fixW"]
-        self.initH = _params["initH"]
-        self.addedCompW = _params["addedCompW"]
-        """
         self.calculate_STFT()
         self.initialize_template_matrix()
         self.factorize()
